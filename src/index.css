@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-paper text-ink font-sans;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+  * {
+    border-color: theme('colors.line.DEFAULT');
+  }
+  ::selection {
+    background: theme('colors.brand.200');
+    color: theme('colors.brand.900');
+  }
+
+  /* Numeric tabular figures everywhere */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
+
+@layer components {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.line.strong') transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: theme('colors.line.strong');
+    border-radius: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: theme('colors.ink.subtle');
+  }
+
+  /* Subtle grid background for hero areas */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(14,14,12,0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(14,14,12,0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* Dotted divider */
+  .divide-dotted-y > * + * {
+    border-top: 1px dotted theme('colors.line.strong');
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(14,14,12,0.04) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
+}

@@ -76,7 +76,7 @@ export default function Opportunities() {
                         <Link to={`/opportunities/${o.id}`} className="text-xs font-medium text-ink hover:text-brand-700 block leading-snug">{o.name}</Link>
                         <p className="text-2xs text-ink-muted">{(client as any)?.name}</p>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-ink">{fmtCurrency(o.value, { compact: true })}</span>
+                          <span className="text-xs font-semibold text-ink">{fmtCurrency(Number(o.value), { compact: true })}</span>
                           <span className="text-2xs text-ink-muted">{o.probability}%</span>
                         </div>
                         {stale && <span className="flex items-center gap-1 text-2xs text-amber-700"><AlertCircle size={10} />Stale</span>}
@@ -118,7 +118,7 @@ export default function Opportunities() {
                         </td>
                         <td className="px-4 py-3 text-xs text-ink-muted">{(client as any)?.name}</td>
                         <td className="px-4 py-3"><Badge className={stageMeta?.tone ?? ''}>{o.stage}</Badge></td>
-                        <td className="px-4 py-3 text-right text-xs font-medium">{fmtCurrency(o.value, { compact: true })}</td>
+                        <td className="px-4 py-3 text-right text-xs font-medium">{fmtCurrency(Number(o.value), { compact: true })}</td>
                         <td className="px-4 py-3 text-right text-xs text-ink-muted">{o.probability}%</td>
                         <td className="px-4 py-3 text-xs text-ink-muted">{fmtDate(o.expectedCloseDate)}</td>
                         <td className="px-4 py-3">{owner && <Avatar initials={(owner as any).initials} size="xs" title={(owner as any).name} />}</td>

@@ -28,8 +28,8 @@ export default function Opportunities() {
 
   const opps = opportunities as any[];
   const visible = stageFilter === 'all' ? opps : opps.filter(o => o.stage === stageFilter);
-  const totalValue = sumBy(visible, o => o.value);
-  const weighted = sumBy(visible, o => o.value * (o.probability / 100));
+  const totalValue = sumBy(visible, o => Number(o.value));
+  const weighted = sumBy(visible, o => Number(o.value) * (o.probability / 100));
   const staleCount = visible.filter(o => daysFromNow(o.lastInteractionAt) <= -10).length;
 
   return (
@@ -65,7 +65,7 @@ export default function Opportunities() {
               <div key={stage.key} className="space-y-2">
                 <div className="flex items-center gap-2 mb-3">
                   <Badge className={stage.tone}>{stage.label}</Badge>
-                  <span className="text-2xs text-ink-muted">{cols.length} · {fmtCurrency(sumBy(cols, o => o.value), { compact: true })}</span>
+                  <span className="text-2xs text-ink-muted">{cols.length} · {fmtCurrency(sumBy(cols, o => Number(o.value)), { compact: true })}</span>
                 </div>
                 {cols.map(o => {
                   const client = clientById(o.clientId);

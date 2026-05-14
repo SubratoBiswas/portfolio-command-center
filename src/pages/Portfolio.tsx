@@ -27,7 +27,7 @@ export default function Portfolio() {
 
   const sections: Section[] = [
     { label: 'Products',      count: prods.length,  to: '/products',                  icon: Boxes,         detail: `${prods.filter(p => ['ga','mature'].includes(p.maturity)).length} in market`,          tone: 'from-brand to-brand-900' },
-    { label: 'Opportunities', count: opps.length,   to: '/opportunities',             icon: Target,        detail: `${fmtCurrency(sumBy(opps, o => o.value), { compact: true })} pipeline`,                tone: 'from-amber-500 to-amber-700' },
+    { label: 'Opportunities', count: opps.length,   to: '/opportunities',             icon: Target,        detail: `${fmtCurrency(sumBy(opps, o => Number(o.value))), { compact: true })} pipeline`,                tone: 'from-amber-500 to-amber-700' },
     { label: 'Projects',      count: projs.length,  to: '/projects',                  icon: FolderKanban,  detail: `${projs.filter(p => !['done','cancelled'].includes(p.status)).length} active`,          tone: 'from-info to-indigo-700' },
     { label: 'Capabilities',  count: caps.length,   to: '/library/capabilities',      icon: Wrench,        detail: 'Reusable building blocks',                                                              tone: 'from-violet-500 to-violet-700' },
     { label: 'Risks',         count: rks.length,    to: '/intelligence/risks',        icon: AlertTriangle, detail: `${rks.filter(r => r.severity === 'critical').length} critical`,                         tone: 'from-crit to-rose-700' },

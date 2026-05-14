@@ -47,3 +47,22 @@ export function DialogBody({ children, className }: { children: React.ReactNode;
 export function DialogFooter({ children }: { children: React.ReactNode }) {
   return <div className="px-5 py-3 border-t border-line flex items-center justify-end gap-2">{children}</div>;
 }
+
+// ---- Form helpers used in create-modals ----
+export function Field({
+  label, required, children, hint,
+}: { label: string; required?: boolean; children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-ink-soft block">
+        {label}{required && <span className="text-crit ml-0.5">*</span>}
+      </label>
+      {children}
+      {hint && <p className="text-2xs text-ink-muted mt-0.5">{hint}</p>}
+    </div>
+  );
+}
+
+export function FormRow({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-2 gap-3">{children}</div>;
+}

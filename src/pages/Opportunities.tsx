@@ -55,7 +55,7 @@ export default function Opportunities() {
         stage: form.stage,
         value: form.value ? Number(form.value) : 0,
         probability: Number(form.probability),
-        expectedCloseDate: form.expectedCloseDate,
+        expectedCloseDate: new Date(form.expectedCloseDate).toISOString(),
         ownerId: form.ownerId,
         description: form.description.trim() || '',
         strategicImportance: form.strategicImportance,

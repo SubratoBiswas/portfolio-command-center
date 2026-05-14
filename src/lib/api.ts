@@ -1,5 +1,5 @@
 // =============================================================================
-// API client — typed wrapper around the NestJS backend.
+// API client — typed wrapper around the NestJS backend. -- Subrato Biswas - Updated 14May
 // VITE_USE_API=true → real HTTP calls to VITE_API_URL
 // VITE_USE_API unset/false → in-memory mock from @/data/seed
 // =============================================================================

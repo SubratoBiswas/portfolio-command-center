@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Plus, AlertTriangle, AlertCircle } from 'lucide-react';
-import { Fragment } from 'react';
 import { useRisks, useIssues, useLookups, useResources, useProjects, useCreateRisk } from '@/lib/hooks';
-import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
+import { Card, CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -40,7 +39,7 @@ const EMPTY = { title: '', severity: 'medium', likelihood: 'medium', status: 'op
 export default function Risks() {
   const { data: risks = [], isLoading } = useRisks();
   const { data: issues = [] } = useIssues();
-  const { resourceById, productById, projectById, opportunityById } = useLookups();
+  const { resourceById, productById, projectById } = useLookups();
   const { data: resources = [] } = useResources();
   const { data: projects = [] } = useProjects();
   const createRisk = useCreateRisk();
@@ -76,7 +75,7 @@ export default function Risks() {
     }
   }
 
-  if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading risks…</div>;
+  if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading risks...</div>;
 
   const criticalRisks = (risks as any[]).filter(r => r.severity === 'critical' || r.severity === 'high');
 
@@ -84,8 +83,8 @@ export default function Risks() {
     <div>
       <PageHeader
         eyebrow="Intelligence"
-        title="Risk & Issues"
-        subtitle={`${risks.length} risks tracked. ${criticalRisks.length} critical or high. ${issues.length} active issues.`}
+        title="Risk and Issues"
+        subtitle={risks.length + ' risks tracked. ' + criticalRisks.length + ' critical or high. ' + issues.length + ' active issues.'}
         actions={<Button variant="primary" onClick={() => setOpen(true)}><Plus size={13} /> Log risk</Button>}
       />
       <Tabs defaultValue="heatmap" className="p-6 space-y-4">
@@ -101,7 +100,7 @@ export default function Risks() {
                 <table className="w-full border-collapse text-xs">
                   <thead>
                     <tr>
-                      <th className="text-right pr-3 py-1 text-ink-muted font-normal w-20">Impact →<br/>Likelihood ↓</th>
+                      <th className="text-right pr-3 py-1 text-ink-muted font-normal w-20">Impact<br/>Likelihood</th>
                       {MATRIX_COLS.map(c => <th key={c} className="text-center py-1 text-2xs font-medium text-ink-muted w-20">{c}</th>)}
                     </tr>
                   </thead>
@@ -151,6 +150,95 @@ export default function Risks() {
                           <Badge className="bg-line-subtle text-ink-muted">{r.status}</Badge>
                         </div>
                         <p className="text-xs text-ink-muted mb-2">{r.description}</p>
-                        {r.mitigation && <p className="text-xs text-ok">Mitigation: {r.mitigation}</p>}
+                        {r.mitigation && <p className="text-xs text-ok">{'Mitigation: ' + r.mitigation}</p>}
                         <div className="flex items-center gap-3 mt-2 text-2xs text-ink-muted">
-                          {owner && <span className="flex items-center gap-1"><Avatar initials={(own
+                          {owner && <span className="flex items-center gap-1"><Avatar initials={(owner as any).initials} size="xs" />{(owner as any).name}</span>}
+                          {r.identifiedAt && <span>{fmtRelative(r.identifiedAt)}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        </TabsContent>
+        <TabsContent value="issues">
+          <Card>
+            <ul className="divide-y divide-line">
+              {(issues as any[]).map((issue: any) => (
+                <li key={issue.id} className="px-5 py-4 hover:bg-paper-sunken/40">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0 text-crit" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-sm font-medium text-ink">{issue.title}</span>
+                        <Badge className={issueStatusTone[issue.status] ?? 'bg-line-subtle text-ink-muted'}>{issue.status}</Badge>
+                        <SeverityBadge severity={issue.severity} />
+                      </div>
+                      <p className="text-xs text-ink-muted">{issue.description}</p>
+                      {issue.resolution && <p className="text-xs text-ok mt-1">{'Resolution: ' + issue.resolution}</p>}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader title="Log risk" onClose={() => setOpen(false)} />
+          <DialogBody className="space-y-3">
+            <Field label="Risk title" required>
+              <Input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Key person dependency on AI lead" required />
+            </Field>
+            <FormRow>
+              <Field label="Severity">
+                <Select value={form.severity} onChange={e => set('severity', e.target.value)} className="w-full">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </Select>
+              </Field>
+              <Field label="Likelihood">
+                <Select value={form.likelihood} onChange={e => set('likelihood', e.target.value)} className="w-full">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </Select>
+              </Field>
+            </FormRow>
+            <FormRow>
+              <Field label="Project (optional)">
+                <Select value={form.projectId} onChange={e => set('projectId', e.target.value)} className="w-full">
+                  <option value="">-- none --</option>
+                  {(projects as any[]).map((p: any) => <option key={p.id} value={p.id}>{p.code}</option>)}
+                </Select>
+              </Field>
+              <Field label="Owner">
+                <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full">
+                  <option value="">-- none --</option>
+                  {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </Select>
+              </Field>
+            </FormRow>
+            <Field label="Description">
+              <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="What is the risk and potential impact?" />
+            </Field>
+            <Field label="Mitigation plan">
+              <Textarea value={form.mitigation} onChange={e => set('mitigation', e.target.value)} rows={2} placeholder="How will this risk be mitigated or managed?" />
+            </Field>
+            {error && <p className="text-xs text-crit bg-crit-bg border border-crit/20 rounded px-3 py-2">{error}</p>}
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Logging...' : 'Log risk'}</Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
+    </div>
+  );
+}

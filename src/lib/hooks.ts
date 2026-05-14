@@ -133,21 +133,20 @@ export function useExtractionJobStatus(transcriptId: string, enabled: boolean) {
     queryKey: k.jobStatus(transcriptId),
     queryFn: () => api.transcripts.jobStatus(transcriptId),
     enabled: enabled && !!transcriptId,
-    refetchInterval: (query: any) => { const data = query.state.data;
-      return data?.status === 'succeeded' || data?.status === 'failed' ? false : 2000; },
+    refetchInterval: (query: any) => {
+      const data = query.state.data;
+      return data?.status === 'succeeded' || data?.status === 'failed' ? false : 2000;
+    },
   });
 }
 
 // ---- Lookup helpers ----
-// Build lookup maps from fetched arrays — use in components alongside useResources() etc.
 export function makeLookup<T extends { id: string }>(arr: T[] | undefined) {
   const map = new Map<string, T>((arr ?? []).map(item => [item.id, item]));
   return (id?: string | null) => (id ? map.get(id) : undefined);
 }
 
-// ---- Combined "all lookups" hook ----
-// Fetches resources, clients, products, projects, opportunities, capabilities
-// and returns ready-made lookup functions matching the seed.ts API.
+// ---- Combined lookups hook ----
 export function useLookups() {
   const { data: resources } = useResources();
   const { data: clients } = useClients();
@@ -193,4 +192,40 @@ export function useCreateProduct() {
     onSuccess: () => qc.invalidateQueries({ queryKey: k.products }),
   });
 }
-export function useCreateTask
+export function useCreateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.tasks.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.tasks }),
+  });
+}
+export function useCreateRisk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.risks.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.risks }),
+  });
+}
+
+// ---- Transcript mutations ----
+export function useExtractTranscript() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, provider, sync }: { id: string; provider?: string; sync?: boolean }) =>
+      api.transcripts.extract(id, provider, sync),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.transcripts }),
+  });
+}
+export function useCommitTranscript() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
+      api.transcripts.commit(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: k.transcripts });
+      qc.invalidateQueries({ queryKey: k.actionItems });
+      qc.invalidateQueries({ queryKey: k.risks });
+      qc.invalidateQueries({ queryKey: k.decisions });
+    },
+  });
+}

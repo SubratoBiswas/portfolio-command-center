@@ -9,15 +9,28 @@ import * as seed from '@/data/seed';
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000/api/v1';
 const USE_API = (import.meta.env.VITE_USE_API as string | undefined) === 'true';
 
+const TOKEN_KEY = 'trinamix_token';
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
+export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+
 interface ApiEnvelope<T> { ok: boolean; data: T; meta?: { count?: number; took_ms?: number }; status?: number; message?: string; }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const url = `${API_URL}${path}`;
+  const token = getToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(url, {
     method,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401) {
+    clearToken();
+    window.location.href = '/login';
+    throw new ApiError(401, 'Session expired — please log in again');
+  }
   let payload: ApiEnvelope<T>;
   try { payload = await res.json(); } catch { throw new ApiError(res.status, `Non-JSON from ${url}`); }
   if (!res.ok || payload?.ok === false) throw new ApiError(res.status, payload?.message ?? `${method} ${path} failed`);

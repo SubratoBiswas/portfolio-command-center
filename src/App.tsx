@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppShell from '@/components/shared/AppShell';
+import Login from '@/pages/Login';
 import CommandCenter from '@/pages/CommandCenter';
 import Portfolio from '@/pages/Portfolio';
 import Products from '@/pages/Products';
@@ -21,11 +22,18 @@ import DependencyGraph from '@/pages/DependencyGraph';
 import Capabilities from '@/pages/Capabilities';
 import Reports from '@/pages/Reports';
 import Settings from '@/pages/Settings';
+import { getToken } from '@/lib/api';
+
+function RequireAuth({ children }: { children: JSX.Element }) {
+  if (import.meta.env.VITE_USE_API !== 'true') return children; // mock mode — no auth needed
+  return getToken() ? children : <Navigate to="/login" replace />;
+}
 
 export default function App() {
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      <Route path="login" element={<Login />} />
+      <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route index element={<Navigate to="/command-center" replace />} />
         <Route path="command-center" element={<CommandCenter />} />
         <Route path="portfolio" element={<Portfolio />} />

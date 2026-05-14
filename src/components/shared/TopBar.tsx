@@ -4,6 +4,7 @@ import { useLocation, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { getUser } from '@/lib/api';
 
 interface TopBarProps {
   onOpenAssistant: () => void;
@@ -97,13 +98,21 @@ export function TopBar({ onOpenAssistant }: TopBarProps) {
         </Button>
 
         {/* User */}
-        <div className="pl-2 ml-1 border-l border-line flex items-center gap-2">
-          <Avatar initials="VS" size="md" />
-          <div className="hidden md:flex flex-col leading-tight">
-            <span className="text-xs font-semibold text-ink">Viral Shah</span>
-            <span className="text-2xs text-ink-muted">Portfolio Lead</span>
+          {(() => {
+          const user = getUser();
+          const name = user?.name ?? 'Portfolio Lead';
+          const initials = name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+          const role = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User';
+          return (
+          <div className="pl-2 ml-1 border-l border-line flex items-center gap-2">
+            <Avatar initials={initials} size="md" />
+            <div className="hidden md:flex flex-col leading-tight">
+              <span className="text-xs font-semibold text-ink">{name}</span>
+              <span className="text-2xs text-ink-muted">{role}</span>
+            </div>
           </div>
-        </div>
+          );
+        })()}
       </div>
     </header>
   );

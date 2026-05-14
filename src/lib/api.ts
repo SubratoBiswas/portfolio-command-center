@@ -13,7 +13,13 @@ const TOKEN_KEY = 'trinamix_token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
-
+const USER_KEY  = 'trinamix_user';
+export const getUser = (): { id: string; name: string; email: string; role: string } | null => {
+  try { return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null'); } catch { return null; }
+};
+export const setUser = (u: { id: string; name: string; email: string; role: string }) =>
+  localStorage.setItem(USER_KEY, JSON.stringify(u));
+export const clearUser = () => localStorage.removeItem(USER_KEY);
 interface ApiEnvelope<T> { ok: boolean; data: T; meta?: { count?: number; took_ms?: number }; status?: number; message?: string; }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {

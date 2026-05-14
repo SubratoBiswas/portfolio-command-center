@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authApi, setToken } from '@/lib/api';
+import { authApi, setToken, setUser  } from '@/lib/api';
 
 export default function Login() {
   const nav = useNavigate();
@@ -16,6 +16,7 @@ export default function Login() {
     try {
       const res = await authApi.login(email, password);
       setToken(res.accessToken);
+      setUser(res.user);
       nav('/command-center', { replace: true });
     } catch (err: any) {
       setError(err?.message ?? 'Login failed. Check your credentials.');

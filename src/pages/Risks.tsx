@@ -34,7 +34,10 @@ function matrixCell(impact: number, likelihood: number) {
   return 'bg-ok-bg/40 border-ok/30';
 }
 
-const EMPTY = { title: '', severity: 'medium', likelihood: 'medium', status: 'open', description: '', mitigation: '', projectId: '', ownerId: '' };
+const EMPTY = {
+  title: '', severity: 'medium', likelihood: 'medium', impact: '3',
+  status: 'open', description: '', mitigation: '', projectId: '', ownerId: '',
+};
 
 export default function Risks() {
   const { data: risks = [], isLoading } = useRisks();
@@ -54,17 +57,19 @@ export default function Risks() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) { setError('Risk title is required.'); return; }
+    if (!form.ownerId) { setError('Owner is required.'); return; }
     setSaving(true); setError('');
     try {
       await createRisk.mutateAsync({
         title: form.title.trim(),
         severity: form.severity,
-        likelihood: form.likelihood,
+        likelihood: likelihoodToNum(form.likelihood as any),
+        impact: Number(form.impact),
         status: form.status,
-        description: form.description.trim() || null,
+        description: form.description.trim() || '',
         mitigation: form.mitigation.trim() || null,
         projectId: form.projectId || null,
-        ownerId: form.ownerId || null,
+        ownerId: form.ownerId,
       });
       setOpen(false);
       setForm({ ...EMPTY });
@@ -187,7 +192,7 @@ export default function Risks() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={setOpen} maxWidth="max-w-xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader title="Log risk" onClose={() => setOpen(false)} />
           <DialogBody className="space-y-3">
@@ -212,21 +217,40 @@ export default function Risks() {
               </Field>
             </FormRow>
             <FormRow>
+              <Field label="Impact" hint="1 (minor) to 5 (catastrophic)">
+                <Select value={form.impact} onChange={e => set('impact', e.target.value)} className="w-full">
+                  <option value="1">1 — Minor</option>
+                  <option value="2">2 — Moderate</option>
+                  <option value="3">3 — Significant</option>
+                  <option value="4">4 — Major</option>
+                  <option value="5">5 — Catastrophic</option>
+                </Select>
+              </Field>
+              <Field label="Status">
+                <Select value={form.status} onChange={e => set('status', e.target.value)} className="w-full">
+                  <option value="open">Open</option>
+                  <option value="mitigating">Mitigating</option>
+                  <option value="monitoring">Monitoring</option>
+                  <option value="closed">Closed</option>
+                </Select>
+              </Field>
+            </FormRow>
+            <FormRow>
               <Field label="Project (optional)">
                 <Select value={form.projectId} onChange={e => set('projectId', e.target.value)} className="w-full">
                   <option value="">-- none --</option>
                   {(projects as any[]).map((p: any) => <option key={p.id} value={p.id}>{p.code}</option>)}
                 </Select>
               </Field>
-              <Field label="Owner">
-                <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full">
-                  <option value="">-- none --</option>
+              <Field label="Owner" required>
+                <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full" required>
+                  <option value="">-- select owner --</option>
                   {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </Select>
               </Field>
             </FormRow>
-            <Field label="Description">
-              <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="What is the risk and potential impact?" />
+            <Field label="Description" hint="What is the risk and potential impact?">
+              <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="Describe the risk and its potential impact..." />
             </Field>
             <Field label="Mitigation plan">
               <Textarea value={form.mitigation} onChange={e => set('mitigation', e.target.value)} rows={2} placeholder="How will this risk be mitigated or managed?" />

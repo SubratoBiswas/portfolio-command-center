@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { Input, Select, Textarea } from '@/components/ui/input';
 import { Dialog, DialogHeader, DialogBody, DialogFooter, Field, FormRow } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { fmtCurrency, fmtDate, sumBy, daysFromNow, cn } from '@/lib/utils';
@@ -18,7 +18,12 @@ const STAGES: { key: string; label: string; tone: string }[] = [
   { key: 'negotiate', label: 'Negotiate', tone: 'bg-amber-100 text-amber-800' },
 ];
 
-const EMPTY = { name: '', clientId: '', stage: 'qualify', value: '', probability: '50', expectedCloseDate: '', ownerId: '' };
+const today = () => new Date().toISOString().slice(0, 10);
+
+const EMPTY = {
+  name: '', clientId: '', stage: 'qualify', value: '', probability: '50',
+  expectedCloseDate: '', ownerId: '', description: '', strategicImportance: 'medium',
+};
 
 export default function Opportunities() {
   const [view, setView] = useState<'kanban' | 'table'>('kanban');
@@ -39,16 +44,22 @@ export default function Opportunities() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) { setError('Name is required.'); return; }
+    if (!form.clientId) { setError('Client is required.'); return; }
+    if (!form.ownerId) { setError('Owner is required.'); return; }
+    if (!form.expectedCloseDate) { setError('Expected close date is required.'); return; }
     setSaving(true); setError('');
     try {
       await createOpportunity.mutateAsync({
         name: form.name.trim(),
-        clientId: form.clientId || null,
+        clientId: form.clientId,
         stage: form.stage,
         value: form.value ? Number(form.value) : 0,
         probability: Number(form.probability),
-        expectedCloseDate: form.expectedCloseDate || null,
-        ownerId: form.ownerId || null,
+        expectedCloseDate: form.expectedCloseDate,
+        ownerId: form.ownerId,
+        description: form.description.trim() || '',
+        strategicImportance: form.strategicImportance,
+        lastInteractionAt: new Date().toISOString(),
       });
       setOpen(false);
       setForm({ ...EMPTY });
@@ -167,7 +178,7 @@ export default function Opportunities() {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={setOpen} maxWidth="max-w-xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader title="New opportunity" onClose={() => setOpen(false)} />
           <DialogBody className="space-y-3">
@@ -175,9 +186,9 @@ export default function Opportunities() {
               <Input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. HSBC Data Platform Phase 2" required />
             </Field>
             <FormRow>
-              <Field label="Client">
-                <Select value={form.clientId} onChange={e => set('clientId', e.target.value)} className="w-full">
-                  <option value="">-- none --</option>
+              <Field label="Client" required>
+                <Select value={form.clientId} onChange={e => set('clientId', e.target.value)} className="w-full" required>
+                  <option value="">-- select client --</option>
                   {(clients as any[]).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
               </Field>
@@ -196,16 +207,27 @@ export default function Opportunities() {
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Expected close date">
-                <Input type="date" value={form.expectedCloseDate} onChange={e => set('expectedCloseDate', e.target.value)} />
+              <Field label="Expected close date" required>
+                <Input type="date" value={form.expectedCloseDate} onChange={e => set('expectedCloseDate', e.target.value)} required />
               </Field>
-              <Field label="Owner">
-                <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full">
-                  <option value="">-- none --</option>
-                  {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              <Field label="Strategic importance">
+                <Select value={form.strategicImportance} onChange={e => set('strategicImportance', e.target.value)} className="w-full">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
                 </Select>
               </Field>
             </FormRow>
+            <Field label="Owner" required>
+              <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full" required>
+                <option value="">-- select owner --</option>
+                {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Description">
+              <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="Brief description of the opportunity..." />
+            </Field>
             {error && <p className="text-xs text-crit bg-crit-bg border border-crit/20 rounded px-3 py-2">{error}</p>}
           </DialogBody>
           <DialogFooter>

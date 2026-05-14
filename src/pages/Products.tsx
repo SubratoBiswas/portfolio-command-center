@@ -17,7 +17,10 @@ const maturityTone: Record<string, string> = {
   beta: 'bg-amber-100 text-amber-800', ga: 'bg-ok-bg text-ok', mature: 'bg-brand-100 text-brand-800',
 };
 
-const EMPTY = { name: '', shortName: '', strategicBucket: '', maturity: 'concept', vision: '', ownerId: '' };
+const EMPTY = {
+  name: '', shortName: '', strategicBucket: '', maturity: 'concept',
+  vision: '', problem: '', targetUsers: '', architectureStatus: 'draft', ownerId: '',
+};
 
 export default function Products() {
   const { data: products = [], isLoading } = useProducts();
@@ -42,7 +45,10 @@ export default function Products() {
         shortName: form.shortName.trim() || form.name.trim().slice(0, 10),
         strategicBucket: form.strategicBucket.trim() || 'General',
         maturity: form.maturity,
-        vision: form.vision.trim() || null,
+        vision: form.vision.trim() || '',
+        problem: form.problem.trim() || '',
+        targetUsers: form.targetUsers.trim() || '',
+        architectureStatus: form.architectureStatus,
         ownerId: form.ownerId || null,
       });
       setOpen(false);
@@ -129,14 +135,30 @@ export default function Products() {
                 </Select>
               </Field>
             </FormRow>
-            <Field label="Owner">
-              <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full">
-                <option value="">-- none --</option>
-                {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </Select>
+            <FormRow>
+              <Field label="Architecture status">
+                <Select value={form.architectureStatus} onChange={e => set('architectureStatus', e.target.value)} className="w-full">
+                  <option value="draft">Draft</option>
+                  <option value="reviewed">Reviewed</option>
+                  <option value="approved">Approved</option>
+                  <option value="implemented">Implemented</option>
+                </Select>
+              </Field>
+              <Field label="Owner">
+                <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full">
+                  <option value="">-- none --</option>
+                  {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </Select>
+              </Field>
+            </FormRow>
+            <Field label="Problem statement">
+              <Textarea value={form.problem} onChange={e => set('problem', e.target.value)} rows={2} placeholder="What problem does this product solve?" />
+            </Field>
+            <Field label="Target users">
+              <Input value={form.targetUsers} onChange={e => set('targetUsers', e.target.value)} placeholder="e.g. Data engineers, business analysts" />
             </Field>
             <Field label="Vision / description">
-              <Textarea value={form.vision} onChange={e => set('vision', e.target.value)} rows={3} placeholder="Describe the product vision and target outcomes..." />
+              <Textarea value={form.vision} onChange={e => set('vision', e.target.value)} rows={2} placeholder="Describe the product vision and target outcomes..." />
             </Field>
             {error && <p className="text-xs text-crit bg-crit-bg border border-crit/20 rounded px-3 py-2">{error}</p>}
           </DialogBody>

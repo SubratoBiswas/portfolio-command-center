@@ -6,13 +6,17 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
-import { Input, Select } from '@/components/ui/input';
+import { Input, Select, Textarea } from '@/components/ui/input';
 import { Dialog, DialogHeader, DialogBody, DialogFooter, Field, FormRow } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge, RagBadge } from '@/components/shared/Badges';
 import { fmtDate, fmtCurrency, daysFromNow, cn } from '@/lib/utils';
 
-const EMPTY = { name: '', code: '', clientId: '', ownerId: '', status: 'not_started', rag: 'green', startDate: '', endDate: '', budget: '' };
+const EMPTY = {
+  name: '', code: '', type: 'delivery', clientId: '', ownerId: '',
+  status: 'not_started', rag: 'green', startDate: '', endDate: '',
+  budget: '', charter: '', scope: '',
+};
 
 export default function Projects() {
   const { data: projects = [], isLoading } = useProjects();
@@ -31,18 +35,24 @@ export default function Projects() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim() || !form.code.trim()) { setError('Name and code are required.'); return; }
+    if (!form.clientId) { setError('Client is required.'); return; }
+    if (!form.ownerId) { setError('Owner is required.'); return; }
+    if (!form.endDate) { setError('End date is required.'); return; }
     setSaving(true); setError('');
     try {
       await createProject.mutateAsync({
         name: form.name.trim(),
         code: form.code.trim().toUpperCase(),
-        clientId: form.clientId || null,
-        ownerId: form.ownerId || null,
+        type: form.type,
+        clientId: form.clientId,
+        ownerId: form.ownerId,
         status: form.status,
         rag: form.rag,
         startDate: form.startDate || new Date().toISOString(),
-        endDate: form.endDate || null,
+        endDate: form.endDate,
         budget: form.budget ? Number(form.budget) : null,
+        charter: form.charter.trim() || '',
+        scope: form.scope.trim() || '',
       });
       setOpen(false);
       setForm({ ...EMPTY });
@@ -121,7 +131,7 @@ export default function Projects() {
         </Card>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={setOpen} maxWidth="max-w-xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader title="New project" onClose={() => setOpen(false)} />
           <DialogBody className="space-y-3">
@@ -134,15 +144,33 @@ export default function Projects() {
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Client">
-                <Select value={form.clientId} onChange={e => set('clientId', e.target.value)} className="w-full">
-                  <option value="">-- none --</option>
+              <Field label="Type">
+                <Select value={form.type} onChange={e => set('type', e.target.value)} className="w-full">
+                  <option value="delivery">Delivery</option>
+                  <option value="internal">Internal</option>
+                  <option value="rd">R&D</option>
+                  <option value="poc">POC</option>
+                </Select>
+              </Field>
+              <Field label="RAG">
+                <Select value={form.rag} onChange={e => set('rag', e.target.value)} className="w-full">
+                  <option value="green">Green</option>
+                  <option value="yellow">Yellow</option>
+                  <option value="orange">Orange</option>
+                  <option value="red">Red</option>
+                </Select>
+              </Field>
+            </FormRow>
+            <FormRow>
+              <Field label="Client" required>
+                <Select value={form.clientId} onChange={e => set('clientId', e.target.value)} className="w-full" required>
+                  <option value="">-- select client --</option>
                   {(clients as any[]).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
               </Field>
-              <Field label="Owner">
-                <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full">
-                  <option value="">-- none --</option>
+              <Field label="Owner" required>
+                <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full" required>
+                  <option value="">-- select owner --</option>
                   {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </Select>
               </Field>
@@ -157,25 +185,23 @@ export default function Projects() {
                   <option value="blocked">Blocked</option>
                 </Select>
               </Field>
-              <Field label="RAG">
-                <Select value={form.rag} onChange={e => set('rag', e.target.value)} className="w-full">
-                  <option value="green">Green</option>
-                  <option value="yellow">Yellow</option>
-                  <option value="orange">Orange</option>
-                  <option value="red">Red</option>
-                </Select>
+              <Field label="Budget (USD)">
+                <Input type="number" value={form.budget} onChange={e => set('budget', e.target.value)} placeholder="e.g. 500000" min="0" />
               </Field>
             </FormRow>
             <FormRow>
               <Field label="Start date">
                 <Input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} />
               </Field>
-              <Field label="End date">
-                <Input type="date" value={form.endDate} onChange={e => set('endDate', e.target.value)} />
+              <Field label="End date" required>
+                <Input type="date" value={form.endDate} onChange={e => set('endDate', e.target.value)} required />
               </Field>
             </FormRow>
-            <Field label="Budget (USD)">
-              <Input type="number" value={form.budget} onChange={e => set('budget', e.target.value)} placeholder="e.g. 500000" min="0" />
+            <Field label="Charter" hint="What is the project mandate?">
+              <Textarea value={form.charter} onChange={e => set('charter', e.target.value)} rows={2} placeholder="e.g. Migrate legacy MDM system to cloud-native platform..." />
+            </Field>
+            <Field label="Scope" hint="What is in / out of scope?">
+              <Textarea value={form.scope} onChange={e => set('scope', e.target.value)} rows={2} placeholder="e.g. Includes data migration and UAT. Excludes training." />
             </Field>
             {error && <p className="text-xs text-crit bg-crit-bg border border-crit/20 rounded px-3 py-2">{error}</p>}
           </DialogBody>

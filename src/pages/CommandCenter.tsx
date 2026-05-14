@@ -50,8 +50,8 @@ export default function CommandCenter() {
 
   // Computed metrics
   const activeOpps = opps.filter(o => !['closed_won','closed_lost'].includes(o.stage));
-  const pipelineValue = sumBy(activeOpps, o => o.value);
-  const weightedPipeline = sumBy(activeOpps, o => o.value * (o.probability / 100));
+  const pipelineValue = sumBy(activeOpps, o => Number(o.value));
+  const weightedPipeline = sumBy(activeOpps, o => Number(o.value) * (o.probability / 100));
   const closingSoon = activeOpps.filter(o => daysFromNow(o.expectedCloseDate) <= 30);
   const activeProjects = projs.filter(p => !['done','cancelled'].includes(p.status));
   const atRiskProjects = activeProjects.filter(p => ['red','orange'].includes(p.rag));

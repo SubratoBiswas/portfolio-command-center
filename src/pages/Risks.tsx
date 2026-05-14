@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { Plus, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Fragment } from 'react';
-import { useRisks, useIssues, useLookups } from '@/lib/hooks';
+import { useRisks, useIssues, useLookups, useResources, useProjects, useCreateRisk } from '@/lib/hooks';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Input, Select, Textarea } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Dialog, DialogHeader, DialogBody, DialogFooter, Field, FormRow } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { SeverityBadge } from '@/components/shared/Badges';
 import { fmtRelative, cn } from '@/lib/utils';
@@ -32,10 +35,46 @@ function matrixCell(impact: number, likelihood: number) {
   return 'bg-ok-bg/40 border-ok/30';
 }
 
+const EMPTY = { title: '', severity: 'medium', likelihood: 'medium', status: 'open', description: '', mitigation: '', projectId: '', ownerId: '' };
+
 export default function Risks() {
   const { data: risks = [], isLoading } = useRisks();
   const { data: issues = [] } = useIssues();
   const { resourceById, productById, projectById, opportunityById } = useLookups();
+  const { data: resources = [] } = useResources();
+  const { data: projects = [] } = useProjects();
+  const createRisk = useCreateRisk();
+
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ ...EMPTY });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.title.trim()) { setError('Risk title is required.'); return; }
+    setSaving(true); setError('');
+    try {
+      await createRisk.mutateAsync({
+        title: form.title.trim(),
+        severity: form.severity,
+        likelihood: form.likelihood,
+        status: form.status,
+        description: form.description.trim() || null,
+        mitigation: form.mitigation.trim() || null,
+        projectId: form.projectId || null,
+        ownerId: form.ownerId || null,
+      });
+      setOpen(false);
+      setForm({ ...EMPTY });
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to log risk.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading risks…</div>;
 
@@ -47,7 +86,7 @@ export default function Risks() {
         eyebrow="Intelligence"
         title="Risk & Issues"
         subtitle={`${risks.length} risks tracked. ${criticalRisks.length} critical or high. ${issues.length} active issues.`}
-        actions={<Button variant="primary"><Plus size={13} /> Log risk</Button>}
+        actions={<Button variant="primary" onClick={() => setOpen(true)}><Plus size={13} /> Log risk</Button>}
       />
       <Tabs defaultValue="heatmap" className="p-6 space-y-4">
         <TabsList>
@@ -114,40 +153,4 @@ export default function Risks() {
                         <p className="text-xs text-ink-muted mb-2">{r.description}</p>
                         {r.mitigation && <p className="text-xs text-ok">Mitigation: {r.mitigation}</p>}
                         <div className="flex items-center gap-3 mt-2 text-2xs text-ink-muted">
-                          {owner && <span className="flex items-center gap-1"><Avatar initials={(owner as any).initials} size="xs" />{(owner as any).name}</span>}
-                          {r.identifiedAt && <span>{fmtRelative(r.identifiedAt)}</span>}
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-        </TabsContent>
-        <TabsContent value="issues">
-          <Card>
-            <ul className="divide-y divide-line">
-              {(issues as any[]).map((issue: any) => (
-                <li key={issue.id} className="px-5 py-4 hover:bg-paper-sunken/40">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle size={14} className="mt-0.5 shrink-0 text-crit" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="text-sm font-medium text-ink">{issue.title}</span>
-                        <Badge className={issueStatusTone[issue.status] ?? 'bg-line-subtle text-ink-muted'}>{issue.status}</Badge>
-                        <SeverityBadge severity={issue.severity} />
-                      </div>
-                      <p className="text-xs text-ink-muted">{issue.description}</p>
-                      {issue.resolution && <p className="text-xs text-ok mt-1">Resolution: {issue.resolution}</p>}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+                          {owner && <span className="flex items-center gap-1"><Avatar initials={(own

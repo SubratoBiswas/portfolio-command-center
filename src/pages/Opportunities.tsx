@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, LayoutGrid, Rows, TrendingUp, Clock, AlertCircle } from 'lucide-react';
-import { useOpportunities, useLookups } from '@/lib/hooks';
+import { useOpportunities, useLookups, useClients, useResources, useCreateOpportunity } from '@/lib/hooks';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
+import { Dialog, DialogHeader, DialogBody, DialogFooter, Field, FormRow } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { SeverityBadge } from '@/components/shared/Badges';
 import { fmtCurrency, fmtDate, sumBy, daysFromNow, cn } from '@/lib/utils';
@@ -18,11 +19,46 @@ const STAGES: { key: string; label: string; tone: string }[] = [
   { key: 'negotiate', label: 'Negotiate', tone: 'bg-amber-100 text-amber-800' },
 ];
 
+const EMPTY = { name: '', clientId: '', stage: 'qualify', value: '', probability: '50', expectedCloseDate: '', ownerId: '' };
+
 export default function Opportunities() {
   const [view, setView] = useState<'kanban' | 'table'>('kanban');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const { data: opportunities = [], isLoading } = useOpportunities();
   const { clientById, productById, resourceById } = useLookups();
+  const { data: clients = [] } = useClients();
+  const { data: resources = [] } = useResources();
+  const createOpportunity = useCreateOpportunity();
+
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ ...EMPTY });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) { setError('Name is required.'); return; }
+    setSaving(true); setError('');
+    try {
+      await createOpportunity.mutateAsync({
+        name: form.name.trim(),
+        clientId: form.clientId || null,
+        stage: form.stage,
+        value: form.value ? Number(form.value) : 0,
+        probability: Number(form.probability),
+        expectedCloseDate: form.expectedCloseDate || null,
+        ownerId: form.ownerId || null,
+      });
+      setOpen(false);
+      setForm({ ...EMPTY });
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to create opportunity.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading pipeline…</div>;
 
@@ -42,7 +78,7 @@ export default function Opportunities() {
           <div className="flex items-center gap-2">
             <Button variant={view === 'kanban' ? 'primary' : 'ghost'} size="sm" onClick={() => setView('kanban')}><LayoutGrid size={13} /></Button>
             <Button variant={view === 'table' ? 'primary' : 'ghost'} size="sm" onClick={() => setView('table')}><Rows size={13} /></Button>
-            <Button variant="primary"><Plus size={13} /> New opportunity</Button>
+            <Button variant="primary" onClick={() => setOpen(true)}><Plus size={13} /> New opportunity</Button>
           </div>
         }
       />
@@ -108,29 +144,4 @@ export default function Opportunities() {
                   {visible.map(o => {
                     const client = clientById(o.clientId);
                     const owner = resourceById(o.ownerId);
-                    const stale = daysFromNow(o.lastInteractionAt) <= -10;
-                    const stageMeta = STAGES.find(s => s.key === o.stage);
-                    return (
-                      <tr key={o.id} className="hover:bg-paper-sunken/30">
-                        <td className="px-4 py-3">
-                          <Link to={`/opportunities/${o.id}`} className="font-medium text-ink hover:text-brand-700">{o.name}</Link>
-                          {stale && <span className="ml-2 text-2xs text-amber-700">stale</span>}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-ink-muted">{(client as any)?.name}</td>
-                        <td className="px-4 py-3"><Badge className={stageMeta?.tone ?? ''}>{o.stage}</Badge></td>
-                        <td className="px-4 py-3 text-right text-xs font-medium">{fmtCurrency(Number(o.value), { compact: true })}</td>
-                        <td className="px-4 py-3 text-right text-xs text-ink-muted">{o.probability}%</td>
-                        <td className="px-4 py-3 text-xs text-ink-muted">{fmtDate(o.expectedCloseDate)}</td>
-                        <td className="px-4 py-3">{owner && <Avatar initials={(owner as any).initials} size="xs" title={(owner as any).name} />}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
-      )}
-    </div>
-  );
-}
+                    c

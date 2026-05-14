@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { useTasks, useLookups } from '@/lib/hooks';
+import { useTasks, useLookups, useResources, useProjects, useCreateTask } from '@/lib/hooks';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Input, Select } from '@/components/ui/input';
+import { Dialog, DialogHeader, DialogBody, DialogFooter, Field, FormRow } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PriorityBadge } from '@/components/shared/Badges';
 import { fmtDate, daysFromNow, cn } from '@/lib/utils';
@@ -16,9 +19,43 @@ const COLUMNS = [
   { key: 'done',        label: 'Done',          tone: 'bg-ok-bg text-ok' },
 ] as const;
 
+const EMPTY = { title: '', projectId: '', assigneeId: '', priority: 'p2', status: 'not_started', dueDate: '' };
+
 export default function Tasks() {
   const { data: tasks = [], isLoading } = useTasks();
   const { resourceById, projectById } = useLookups();
+  const { data: resources = [] } = useResources();
+  const { data: projects = [] } = useProjects();
+  const createTask = useCreateTask();
+
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ ...EMPTY });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.title.trim()) { setError('Task title is required.'); return; }
+    setSaving(true); setError('');
+    try {
+      await createTask.mutateAsync({
+        title: form.title.trim(),
+        projectId: form.projectId || null,
+        assigneeId: form.assigneeId || null,
+        priority: form.priority,
+        status: form.status,
+        dueDate: form.dueDate || null,
+      });
+      setOpen(false);
+      setForm({ ...EMPTY });
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to create task.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading tasks…</div>;
 
@@ -27,8 +64,8 @@ export default function Tasks() {
       <PageHeader
         eyebrow="Execution"
         title="Tasks"
-        subtitle={`${tasks.length} tasks across the portfolio. Drag-and-drop is a stub — wire up dnd-kit in production.`}
-        actions={<Button variant="primary"><Plus size={13} /> New task</Button>}
+        subtitle={`${tasks.length} tasks across the portfolio.`}
+        actions={<Button variant="primary" onClick={() => setOpen(true)}><Plus size={13} /> New task</Button>}
       />
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-3">
@@ -43,33 +80,4 @@ export default function Tasks() {
                 {colTasks.map((t: any) => {
                   const assignee = resourceById(t.assigneeId);
                   const project = projectById(t.projectId);
-                  const overdue = t.dueDate && daysFromNow(t.dueDate) < 0 && t.status !== 'done';
-                  return (
-                    <Card key={t.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                      <div className="p-3 space-y-2">
-                        <div className="flex items-start justify-between gap-1">
-                          <p className="text-xs font-medium text-ink leading-snug">{t.title}</p>
-                          <PriorityBadge priority={t.priority} />
-                        </div>
-                        {project && <p className="text-2xs text-ink-muted">{(project as any).code}</p>}
-                        <div className="flex items-center justify-between">
-                          {assignee ? <Avatar initials={(assignee as any).initials} size="xs" /> : <span />}
-                          {t.dueDate && (
-                            <span className={cn('text-2xs', overdue ? 'text-crit font-medium' : 'text-ink-muted')}>
-                              {fmtDate(t.dueDate)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
-                {colTasks.length === 0 && <p className="text-2xs text-ink-muted text-center py-4">Empty</p>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
+                  const overdue = t.dueDate && daysFromNow(t.dueDate) < 0 && t.s

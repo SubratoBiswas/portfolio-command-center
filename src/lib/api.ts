@@ -1,5 +1,5 @@
 // =============================================================================
-// API client — typed wrapper around the NestJS backend. -- Subrato Biswas - Updated 14May
+// API client — typed wrapper around the NestJS backend.
 // VITE_USE_API=true → real HTTP calls to VITE_API_URL
 // VITE_USE_API unset/false → in-memory mock from @/data/seed
 // =============================================================================
@@ -10,16 +10,17 @@ const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://
 const USE_API = (import.meta.env.VITE_USE_API as string | undefined) === 'true';
 
 const TOKEN_KEY = 'trinamix_token';
+const USER_KEY  = 'trinamix_user';
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
-const USER_KEY  = 'trinamix_user';
 export const getUser = (): { id: string; name: string; email: string; role: string } | null => {
   try { return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null'); } catch { return null; }
 };
 export const setUser = (u: { id: string; name: string; email: string; role: string }) =>
   localStorage.setItem(USER_KEY, JSON.stringify(u));
 export const clearUser = () => localStorage.removeItem(USER_KEY);
+
 interface ApiEnvelope<T> { ok: boolean; data: T; meta?: { count?: number; took_ms?: number }; status?: number; message?: string; }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -74,10 +75,22 @@ export const api = {
   products: {
     list: () => USE_API ? call<typeof seed.products>('GET', '/products') : Promise.resolve(seed.products),
     get: (id: string) => USE_API ? call<any>('GET', `/products/${id}`) : Promise.resolve(seed.productById(id)),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/products', data)
+      : Promise.resolve((() => {
+          const r = { ...data, id: `prod-${Date.now()}`, aiReadiness: 0, deliveryReadiness: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+          (seed.products as any[]).push(r); return r;
+        })()),
   },
   opportunities: {
     list: () => USE_API ? call<typeof seed.opportunities>('GET', '/opportunities') : Promise.resolve(seed.opportunities),
     get: (id: string) => USE_API ? call<any>('GET', `/opportunities/${id}`) : Promise.resolve(seed.opportunityById(id)),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/opportunities', data)
+      : Promise.resolve((() => {
+          const r = { ...data, id: `opp-${Date.now()}`, lastInteractionAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+          (seed.opportunities as any[]).push(r); return r;
+        })()),
     stale: (days = 10) =>
       USE_API
         ? call<typeof seed.opportunities>('GET', `/opportunities/stale?days=${days}`)
@@ -97,12 +110,30 @@ export const api = {
   projects: {
     list: () => USE_API ? call<typeof seed.projects>('GET', '/projects') : Promise.resolve(seed.projects),
     get: (id: string) => USE_API ? call<any>('GET', `/projects/${id}`) : Promise.resolve(seed.projectById(id)),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/projects', data)
+      : Promise.resolve((() => {
+          const r = { ...data, id: `proj-${Date.now()}`, spent: 0, rag: data.rag ?? 'green', status: data.status ?? 'not_started', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+          (seed.projects as any[]).push(r); return r;
+        })()),
   },
   tasks: {
     list: () => USE_API ? call<typeof seed.tasks>('GET', '/tasks') : Promise.resolve(seed.tasks),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/tasks', data)
+      : Promise.resolve((() => {
+          const r = { ...data, id: `task-${Date.now()}`, status: data.status ?? 'not_started', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+          (seed.tasks as any[]).push(r); return r;
+        })()),
   },
   risks: {
     list: () => USE_API ? call<typeof seed.risks>('GET', '/risks') : Promise.resolve(seed.risks),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/risks', data)
+      : Promise.resolve((() => {
+          const r = { ...data, id: `risk-${Date.now()}`, identifiedAt: new Date().toISOString(), status: data.status ?? 'open', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+          (seed.risks as any[]).push(r); return r;
+        })()),
   },
   issues: {
     list: () => USE_API ? call<typeof seed.issues>('GET', '/issues') : Promise.resolve(seed.issues),

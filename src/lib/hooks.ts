@@ -168,26 +168,29 @@ export function useLookups() {
   };
 }
 
-// ---- Mutations ----
-export function useExtractTranscript() {
+// ---- Create mutations ----
+export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, provider, sync }: { id: string; provider?: string; sync?: boolean }) =>
-      api.transcripts.extract(id, provider, sync),
-    onSuccess: () => qc.invalidateQueries({ queryKey: k.transcripts }),
+    mutationFn: (data: any) => api.projects.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.projects }),
   });
 }
-
-export function useCommitTranscript() {
+export function useCreateOpportunity() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
-      api.transcripts.commit(id, payload),
+    mutationFn: (data: any) => api.opportunities.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: k.transcripts });
-      qc.invalidateQueries({ queryKey: k.actionItems });
-      qc.invalidateQueries({ queryKey: k.risks });
-      qc.invalidateQueries({ queryKey: k.decisions });
+      qc.invalidateQueries({ queryKey: k.opportunities });
+      qc.invalidateQueries({ queryKey: k.pipelineSummary });
     },
   });
 }
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.products.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.products }),
+  });
+}
+export function useCreateTask

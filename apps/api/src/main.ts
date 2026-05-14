@@ -14,7 +14,7 @@ async function bootstrap() {
   app.use(helmet({ contentSecurityPolicy: false }));
 
   app.enableCors({
-    origin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(','),
+    origin: ['https://portfolio-command-center.vercel.app'],
     credentials: true,
   });
 

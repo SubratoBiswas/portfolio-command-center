@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, Briefcase, Boxes, Target, FolderKanban, Users, MapPin, GitBranch,
   ListTodo, Calendar, GanttChart, FileText, AlertTriangle, Gavel, Network, Wrench,
-  BarChart3, Settings as SettingsIcon, Sparkles,
+  BarChart3, Settings as SettingsIcon, Sparkles, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -68,6 +68,12 @@ const sections: NavSection[] = [
     items: [
       { to: '/reports',  label: 'Reports',  icon: BarChart3 },
       { to: '/settings', label: 'Settings', icon: SettingsIcon },
+    ],
+  },
+  {
+    title: 'Admin',
+    items: [
+      { to: '/audit-log', label: 'Audit Log', icon: ShieldCheck },
     ],
   },
 ];

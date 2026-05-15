@@ -21,6 +21,9 @@ import { MeetingsModule } from './meetings/meetings.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
 import { ActionItemsModule } from './action-items/action-items.module';
 import { ReportsModule } from './reports/reports.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -51,12 +54,15 @@ import { ReportsModule } from './reports/reports.module';
     TranscriptsModule,
     ActionItemsModule,
     ReportsModule,
+    AuditLogModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally — routes opt-out with @Public()
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     // Apply RolesGuard globally — routes opt-in with @Roles(...)
     { provide: APP_GUARD, useClass: RolesGuard },
+    // Audit interceptor — logs all mutating requests
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {}

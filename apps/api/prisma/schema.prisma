@@ -479,8 +479,13 @@ model AuditLog {
   beforeJson Json?
   afterJson  Json?
   occurredAt DateTime @default(now())
+  userName   String?
+  userEmail  String?
+  ipAddress  String?
+  userAgent  String?
   @@index([objectType, objectId])
   @@index([actorId])
+  @@index([occurredAt])
 }
 
 // =============================================================================

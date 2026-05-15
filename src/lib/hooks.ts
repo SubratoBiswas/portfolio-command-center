@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
-import { api } from './api';
+import { api, auditLogsApi } from './api';
 import * as seed from '@/data/seed';
 import type { Resource, Client, Product, Project, Opportunity } from './types';
 
@@ -267,5 +267,13 @@ export function useDeleteRisk() {
   return useMutation({
     mutationFn: (id: string) => api.risks.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: k.risks }),
+  });
+}
+
+export function useAuditLogs(params: { objectType?: string; objectId?: string; action?: string; skip?: number; take?: number } = {}) {
+  return useQuery({
+    queryKey: ['auditLogs', params],
+    queryFn: () => auditLogsApi.list(params),
+    staleTime: 30_000,
   });
 }

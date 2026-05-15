@@ -227,6 +227,21 @@ export const api = {
   },
 };
 
+export const auditLogsApi = {
+  list: (params: { objectType?: string; objectId?: string; action?: string; skip?: number; take?: number } = {}) => {
+    if (!USE_API) {
+      return Promise.resolve({ data: [] as any[], total: 0, skip: 0, take: 100 });
+    }
+    const qs = new URLSearchParams();
+    if (params.objectType) qs.set('objectType', params.objectType);
+    if (params.objectId) qs.set('objectId', params.objectId);
+    if (params.action) qs.set('action', params.action);
+    if (params.skip !== undefined) qs.set('skip', String(params.skip));
+    if (params.take !== undefined) qs.set('take', String(params.take));
+    return call<any>('GET', '/audit-logs?' + qs.toString());
+  },
+};
+
 export async function checkApiHealth(): Promise<{ ok: boolean; latency_ms?: number; error?: string }> {
   if (!USE_API) return { ok: true };
   const start = Date.now();

@@ -22,6 +22,7 @@ import DependencyGraph from '@/pages/DependencyGraph';
 import Capabilities from '@/pages/Capabilities';
 import Reports from '@/pages/Reports';
 import Settings from '@/pages/Settings';
+import AuditLog from '@/pages/AuditLog';
 import { getToken } from '@/lib/api';
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="library/capabilities" element={<Capabilities />} />
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="audit-log" element={<AuditLog />} />
       </Route>
     </Routes>
   );

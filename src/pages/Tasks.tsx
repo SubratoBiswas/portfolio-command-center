@@ -1,179 +1,226 @@
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
-import { useTasks, useLookups, useResources, useProjects, useCreateTask, useDeleteTask } from '@/lib/hooks';
-import { Card } from '@/components/ui/card';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { useTasks, useResources, useProjects, useCreateTask, useUpdateTask, useDeleteTask, useLookups } from '@/lib/hooks';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input, Select } from '@/components/ui/input';
+import { Input, Select, Textarea } from '@/components/ui/input';
 import { Dialog, DialogHeader, DialogBody, DialogFooter, Field, FormRow } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { PriorityBadge } from '@/components/shared/Badges';
-import { fmtDate, daysFromNow, cn } from '@/lib/utils';
+import { PriorityBadge, StatusBadge } from '@/components/shared/Badges';
+import { useToast } from '@/components/ui/toast';
+import { fmtDate, cn } from '@/lib/utils';
 
-const COLUMNS = [
-  { key: 'not_started', label: 'Backlog',     tone: 'bg-line-subtle text-ink-muted' },
-  { key: 'in_progress', label: 'In progress', tone: 'bg-info-bg text-info' },
-  { key: 'blocked',     label: 'Blocked',     tone: 'bg-crit-bg text-crit' },
-  { key: 'in_review',   label: 'Review',      tone: 'bg-amber-100 text-amber-800' },
-  { key: 'done',        label: 'Done',        tone: 'bg-ok-bg text-ok' },
-] as const;
+const STATUSES = ['not_started','in_progress','blocked','done'];
+const PRIORITIES = ['low','medium','high','critical'];
 
-const EMPTY = { title: '', projectId: '', assigneeId: '', priority: 'p2', status: 'not_started', dueDate: '' };
+const statusCol: Record<string, string> = {
+  not_started: 'bg-line-subtle text-ink-muted',
+  in_progress: 'bg-info-bg text-info',
+  blocked: 'bg-crit-bg text-crit',
+  done: 'bg-ok-bg text-ok',
+};
+
+const EMPTY = { title: '', description: '', priority: 'medium', status: 'not_started', assigneeId: '', projectId: '', dueDate: '' };
+
+type FormState = typeof EMPTY;
 
 export default function Tasks() {
   const { data: tasks = [], isLoading } = useTasks();
-  const { resourceById, projectById } = useLookups();
   const { data: resources = [] } = useResources();
   const { data: projects = [] } = useProjects();
   const createTask = useCreateTask();
+  const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY });
+  const [editTarget, setEditTarget] = useState<any | null>(null);
+  const [form, setForm] = useState<FormState>({ ...EMPTY });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
+  function openCreate() { setEditTarget(null); setForm({ ...EMPTY }); setError(''); setOpen(true); }
+  function openEdit(t: any) {
+    setEditTarget(t);
+    setForm({
+      title: t.title ?? '',
+      description: t.description ?? '',
+      priority: t.priority ?? 'medium',
+      status: t.status ?? 'not_started',
+      assigneeId: t.assigneeId ?? '',
+      projectId: t.projectId ?? '',
+      dueDate: t.dueDate ? t.dueDate.slice(0, 10) : '',
+    });
+    setError('');
+    setOpen(true);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim()) { setError('Task title is required.'); return; }
+    if (!form.title.trim()) { setError('Title is required.'); return; }
     setSaving(true); setError('');
+    const payload: any = {
+      title: form.title.trim(),
+      description: form.description.trim() || '',
+      priority: form.priority,
+      status: form.status,
+      assigneeId: form.assigneeId || null,
+      projectId: form.projectId || null,
+      dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
+    };
     try {
-      await createTask.mutateAsync({
-        title: form.title.trim(),
-        projectId: form.projectId || null,
-        assigneeId: form.assigneeId || null,
-        priority: form.priority,
-        status: form.status,
-        dueDate: form.dueDate || null,
-      });
+      if (editTarget) {
+        await updateTask.mutateAsync({ id: editTarget.id, ...payload });
+        toast('Task updated successfully');
+      } else {
+        await createTask.mutateAsync(payload);
+        toast('Task created successfully');
+      }
       setOpen(false);
       setForm({ ...EMPTY });
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to create task.');
+      setError(err?.message ?? 'Failed to save task.');
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
-    try { await deleteTask.mutateAsync(id); } finally { setConfirmDelete(null); }
+    try {
+      await deleteTask.mutateAsync(id);
+      toast('Task deleted', 'info');
+    } finally {
+      setConfirmDelete(null);
+    }
   }
 
-  if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading tasks...</div>;
+  const filtered = statusFilter === 'all'
+    ? (tasks as any[])
+    : (tasks as any[]).filter(t => t.status === statusFilter);
+
+  if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading tasks…</div>;
+
+  const grouped = STATUSES.reduce<Record<string, any[]>>((acc, s) => {
+    acc[s] = filtered.filter(t => t.status === s);
+    return acc;
+  }, {});
 
   return (
     <div>
       <PageHeader
         eyebrow="Execution"
         title="Tasks"
-        subtitle={tasks.length + ' tasks across the portfolio.'}
-        actions={<Button variant="primary" onClick={() => setOpen(true)}><Plus size={13} /> New task</Button>}
+        subtitle={filtered.length + ' tasks'}
+        actions={
+          <div className="flex items-center gap-2">
+            <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="text-xs w-36">
+              <option value="all">All statuses</option>
+              {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+            </Select>
+            <Button variant="primary" onClick={openCreate}><Plus size={13} /> New task</Button>
+          </div>
+        }
       />
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-3">
-          {COLUMNS.map(col => {
-            const colTasks = (tasks as any[]).filter((t: any) => t.status === col.key);
-            return (
-              <div key={col.key} className="space-y-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <Badge className={col.tone}>{col.label}</Badge>
-                  <span className="text-2xs text-ink-muted">{colTasks.length}</span>
+
+      {/* Kanban board */}
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {STATUSES.map(status => (
+          <div key={status} className="space-y-2">
+            <div className="flex items-center gap-2 mb-3">
+              <Badge className={cn('text-2xs', statusCol[status])}>{status.replace('_', ' ')}</Badge>
+              <span className="text-2xs text-ink-muted">{grouped[status].length}</span>
+            </div>
+            {grouped[status].map((t: any) => {
+              const assignee = (resources as any[]).find(r => r.id === t.assigneeId);
+              const project = (projects as any[]).find(p => p.id === t.projectId);
+              const isConfirming = confirmDelete === t.id;
+              return (
+                <div key={t.id} className="bg-paper-raised border border-line rounded p-3 space-y-2 hover:shadow-card transition-shadow">
+                  <div className="flex items-start justify-between gap-1">
+                    <span className="text-xs font-medium text-ink leading-snug flex-1">{t.title}</span>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button onClick={() => openEdit(t)} className="text-ink-muted hover:text-brand-700 p-1 rounded hover:bg-brand-50 transition-colors">
+                        <Pencil size={11} />
+                      </button>
+                      {isConfirming ? (
+                        <>
+                          <button onClick={() => handleDelete(t.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-1.5 py-0.5 rounded">Del</button>
+                          <button onClick={() => setConfirmDelete(null)} className="text-2xs text-ink-muted hover:text-ink px-1 py-0.5 rounded border border-line">✕</button>
+                        </>
+                      ) : (
+                        <button onClick={() => setConfirmDelete(t.id)} className="text-ink-muted hover:text-crit p-1 rounded hover:bg-crit-bg transition-colors">
+                          <Trash2 size={11} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {project && <Badge className="bg-info-bg text-info text-2xs">{project.code}</Badge>}
+                  <div className="flex items-center justify-between">
+                    <PriorityBadge priority={t.priority} />
+                    <div className="flex items-center gap-1">
+                      {t.dueDate && <span className="text-2xs text-ink-muted">{fmtDate(t.dueDate)}</span>}
+                      {assignee && <Avatar initials={assignee.initials} size="xs" title={assignee.name} />}
+                    </div>
+                  </div>
                 </div>
-                {colTasks.map((t: any) => {
-                  const assignee = resourceById(t.assigneeId);
-                  const project = projectById(t.projectId);
-                  const overdue = t.dueDate && daysFromNow(t.dueDate) < 0 && t.status !== 'done';
-                  const isConfirming = confirmDelete === t.id;
-                  return (
-                    <Card key={t.id} className="hover:shadow-md transition-shadow">
-                      <div className="p-3 space-y-2">
-                        <div className="flex items-start justify-between gap-1">
-                          <p className="text-xs font-medium text-ink leading-snug flex-1">{t.title}</p>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <PriorityBadge priority={t.priority} />
-                            {isConfirming ? (
-                              <div className="flex items-center gap-0.5">
-                                <button onClick={() => handleDelete(t.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-1.5 py-0.5 rounded">Del</button>
-                                <button onClick={() => setConfirmDelete(null)} className="text-2xs text-ink-muted hover:text-ink px-1 py-0.5 rounded">✕</button>
-                              </div>
-                            ) : (
-                              <button onClick={() => setConfirmDelete(t.id)} className="text-ink-muted hover:text-crit p-0.5 rounded hover:bg-crit-bg transition-colors">
-                                <Trash2 size={11} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        {project && <p className="text-2xs text-ink-muted">{(project as any).code}</p>}
-                        <div className="flex items-center justify-between">
-                          {assignee ? <Avatar initials={(assignee as any).initials} size="xs" /> : <span />}
-                          {t.dueDate && (
-                            <span className={cn('text-2xs', overdue ? 'text-crit font-medium' : 'text-ink-muted')}>
-                              {fmtDate(t.dueDate)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
-                {colTasks.length === 0 && <p className="text-2xs text-ink-muted text-center py-4">Empty</p>}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+            {grouped[status].length === 0 && (
+              <div className="border-2 border-dashed border-line rounded p-4 text-center text-2xs text-ink-subtle">Empty</div>
+            )}
+          </div>
+        ))}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <form onSubmit={handleSubmit}>
-          <DialogHeader title="New task" onClose={() => setOpen(false)} />
+          <DialogHeader title={editTarget ? 'Edit task' : 'New task'} onClose={() => setOpen(false)} />
           <DialogBody className="space-y-3">
-            <Field label="Task title" required>
-              <Input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Review MDM schema design" required />
+            <Field label="Title" required>
+              <Input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Set up CI pipeline" required />
             </Field>
             <FormRow>
-              <Field label="Project">
-                <Select value={form.projectId} onChange={e => set('projectId', e.target.value)} className="w-full">
-                  <option value="">-- none --</option>
-                  {(projects as any[]).map((p: any) => <option key={p.id} value={p.id}>{p.code}</option>)}
+              <Field label="Status">
+                <Select value={form.status} onChange={e => set('status', e.target.value)} className="w-full">
+                  {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                 </Select>
               </Field>
-              <Field label="Assignee">
-                <Select value={form.assigneeId} onChange={e => set('assigneeId', e.target.value)} className="w-full">
-                  <option value="">-- none --</option>
-                  {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              <Field label="Priority">
+                <Select value={form.priority} onChange={e => set('priority', e.target.value)} className="w-full">
+                  {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
                 </Select>
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Priority">
-                <Select value={form.priority} onChange={e => set('priority', e.target.value)} className="w-full">
-                  <option value="p0">P0 Critical</option>
-                  <option value="p1">P1 High</option>
-                  <option value="p2">P2 Medium</option>
-                  <option value="p3">P3 Low</option>
+              <Field label="Assignee">
+                <Select value={form.assigneeId} onChange={e => set('assigneeId', e.target.value)} className="w-full">
+                  <option value="">-- none --</option>
+                  {(resources as any[]).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </Select>
               </Field>
-              <Field label="Initial status">
-                <Select value={form.status} onChange={e => set('status', e.target.value)} className="w-full">
-                  <option value="not_started">Backlog</option>
-                  <option value="in_progress">In progress</option>
-                  <option value="blocked">Blocked</option>
-                  <option value="in_review">Review</option>
+              <Field label="Project">
+                <Select value={form.projectId} onChange={e => set('projectId', e.target.value)} className="w-full">
+                  <option value="">-- none --</option>
+                  {(projects as any[]).map(p => <option key={p.id} value={p.id}>{p.code} – {p.name}</option>)}
                 </Select>
               </Field>
             </FormRow>
             <Field label="Due date">
               <Input type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} />
             </Field>
+            <Field label="Description">
+              <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="Additional context…" />
+            </Field>
             {error && <p className="text-xs text-crit bg-crit-bg border border-crit/20 rounded px-3 py-2">{error}</p>}
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Creating...' : 'Create task'}</Button>
+            <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Saving…' : editTarget ? 'Save changes' : 'Create task'}</Button>
           </DialogFooter>
         </form>
       </Dialog>

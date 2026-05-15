@@ -81,6 +81,9 @@ export const api = {
           const r = { ...data, id: `prod-${Date.now()}`, aiReadiness: 0, deliveryReadiness: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.products as any[]).push(r); return r;
         })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/products/${id}`, data)
+      : Promise.resolve((() => { const p = (seed.products as any[]).find(p => p.id === id); if (p) Object.assign(p, data); return p; })()),
     delete: (id: string) => USE_API
       ? call<any>('DELETE', `/products/${id}`)
       : Promise.resolve((() => { const i = (seed.products as any[]).findIndex(p => p.id === id); if (i !== -1) (seed.products as any[]).splice(i, 1); return { id, deleted: true }; })()),
@@ -94,6 +97,9 @@ export const api = {
           const r = { ...data, id: `opp-${Date.now()}`, lastInteractionAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.opportunities as any[]).push(r); return r;
         })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/opportunities/${id}`, data)
+      : Promise.resolve((() => { const o = (seed.opportunities as any[]).find(o => o.id === id); if (o) Object.assign(o, data); return o; })()),
     delete: (id: string) => USE_API
       ? call<any>('DELETE', `/opportunities/${id}`)
       : Promise.resolve((() => { const i = (seed.opportunities as any[]).findIndex(o => o.id === id); if (i !== -1) (seed.opportunities as any[]).splice(i, 1); return { id, deleted: true }; })()),
@@ -122,6 +128,9 @@ export const api = {
           const r = { ...data, id: `proj-${Date.now()}`, spent: 0, rag: data.rag ?? 'green', status: data.status ?? 'not_started', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.projects as any[]).push(r); return r;
         })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/projects/${id}`, data)
+      : Promise.resolve((() => { const p = (seed.projects as any[]).find(p => p.id === id); if (p) Object.assign(p, data); return p; })()),
     delete: (id: string) => USE_API
       ? call<any>('DELETE', `/projects/${id}`)
       : Promise.resolve((() => { const i = (seed.projects as any[]).findIndex(p => p.id === id); if (i !== -1) (seed.projects as any[]).splice(i, 1); return { id, deleted: true }; })()),
@@ -134,6 +143,9 @@ export const api = {
           const r = { ...data, id: `task-${Date.now()}`, status: data.status ?? 'not_started', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.tasks as any[]).push(r); return r;
         })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/tasks/${id}`, data)
+      : Promise.resolve((() => { const t = (seed.tasks as any[]).find(t => t.id === id); if (t) Object.assign(t, data); return t; })()),
     delete: (id: string) => USE_API
       ? call<any>('DELETE', `/tasks/${id}`)
       : Promise.resolve((() => { const i = (seed.tasks as any[]).findIndex(t => t.id === id); if (i !== -1) (seed.tasks as any[]).splice(i, 1); return { id, deleted: true }; })()),
@@ -146,6 +158,9 @@ export const api = {
           const r = { ...data, id: `risk-${Date.now()}`, identifiedAt: new Date().toISOString(), status: data.status ?? 'open', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.risks as any[]).push(r); return r;
         })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/risks/${id}`, data)
+      : Promise.resolve((() => { const r = (seed.risks as any[]).find(r => r.id === id); if (r) Object.assign(r, data); return r; })()),
     delete: (id: string) => USE_API
       ? call<any>('DELETE', `/risks/${id}`)
       : Promise.resolve((() => { const i = (seed.risks as any[]).findIndex(r => r.id === id); if (i !== -1) (seed.risks as any[]).splice(i, 1); return { id, deleted: true }; })()),

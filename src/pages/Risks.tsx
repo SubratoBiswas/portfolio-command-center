@@ -1,284 +1,246 @@
 import { useState } from 'react';
-import { Plus, AlertTriangle, AlertCircle, Trash2 } from 'lucide-react';
-import { useRisks, useIssues, useLookups, useResources, useProjects, useCreateRisk, useDeleteRisk } from '@/lib/hooks';
-import { Card, CardBody } from '@/components/ui/card';
+import { Plus, AlertTriangle, ShieldAlert, Pencil, Trash2 } from 'lucide-react';
+import { useRisks, useResources, useProjects, useCreateRisk, useUpdateRisk, useDeleteRisk, useLookups } from '@/lib/hooks';
+import { CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogHeader, DialogBody, DialogFooter, Field, FormRow } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { SeverityBadge } from '@/components/shared/Badges';
-import { fmtRelative, cn } from '@/lib/utils';
-import type { Severity } from '@/lib/types';
+import { useToast } from '@/components/ui/toast';
+import { fmtDate, cn } from '@/lib/utils';
 
-const likelihoodToNum = (l: 'low' | 'medium' | 'high' | number): number =>
-  typeof l === 'number' ? l : l === 'high' ? 0.8 : l === 'medium' ? 0.5 : 0.2;
-const severityToImpact = (s: Severity): number =>
-  s === 'critical' ? 5 : s === 'high' ? 4 : s === 'medium' ? 3 : 2;
+const SEVERITIES = ['low','medium','high','critical'];
+const STATUSES = ['open','mitigated','closed','accepted'];
 
-const issueStatusTone: Record<string, string> = {
-  open: 'bg-crit-bg text-crit', in_progress: 'bg-amber-100 text-amber-800',
-  resolved: 'bg-ok-bg text-ok', closed: 'bg-line-subtle text-ink-muted',
+const severityTone: Record<string, string> = {
+  low: 'bg-ok-bg text-ok', medium: 'bg-amber-100 text-amber-800',
+  high: 'bg-amber-200 text-amber-900', critical: 'bg-crit-bg text-crit',
 };
-
-const MATRIX_ROWS = [5, 4, 3, 2, 1];
-const MATRIX_COLS = [1, 2, 3, 4, 5];
-
-function matrixCell(impact: number, likelihood: number) {
-  const score = impact * likelihood;
-  if (score >= 16) return 'bg-crit/20 border-crit/40';
-  if (score >= 9) return 'bg-amber-100 border-amber-300';
-  if (score >= 4) return 'bg-amber-50 border-amber-200';
-  return 'bg-ok-bg/40 border-ok/30';
-}
 
 const EMPTY = {
-  title: '', severity: 'medium', likelihood: 'medium', impact: '3',
-  status: 'open', description: '', mitigation: '', projectId: '', ownerId: '',
+  title: '', description: '', severity: 'medium', likelihood: '0.5',
+  impact: '3', status: 'open', mitigation: '', ownerId: '', projectId: '',
 };
+
+function likelihoodToNum(v: string) { return Math.min(1, Math.max(0, parseFloat(v) || 0.5)); }
 
 export default function Risks() {
   const { data: risks = [], isLoading } = useRisks();
-  const { data: issues = [] } = useIssues();
-  const { resourceById, productById, projectById } = useLookups();
   const { data: resources = [] } = useResources();
   const { data: projects = [] } = useProjects();
   const createRisk = useCreateRisk();
+  const updateRisk = useUpdateRisk();
   const deleteRisk = useDeleteRisk();
+  const { resourceById, projectById } = useLookups();
+  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<any | null>(null);
   const [form, setForm] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+  function openCreate() { setEditTarget(null); setForm({ ...EMPTY }); setError(''); setOpen(true); }
+  function openEdit(r: any) {
+    setEditTarget(r);
+    setForm({
+      title: r.title ?? '',
+      description: r.description ?? '',
+      severity: r.severity ?? 'medium',
+      likelihood: String(r.likelihood ?? 0.5),
+      impact: String(r.impact ?? 3),
+      status: r.status ?? 'open',
+      mitigation: r.mitigation ?? '',
+      ownerId: r.ownerId ?? '',
+      projectId: r.projectId ?? '',
+    });
+    setError('');
+    setOpen(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim()) { setError('Risk title is required.'); return; }
+    if (!form.title.trim()) { setError('Title is required.'); return; }
     if (!form.ownerId) { setError('Owner is required.'); return; }
     setSaving(true); setError('');
+    const payload = {
+      title: form.title.trim(),
+      description: form.description.trim() || '',
+      severity: form.severity,
+      likelihood: likelihoodToNum(form.likelihood),
+      impact: parseInt(form.impact, 10) || 3,
+      status: form.status,
+      mitigation: form.mitigation.trim() || '',
+      ownerId: form.ownerId,
+      projectId: form.projectId || null,
+    };
     try {
-      await createRisk.mutateAsync({
-        title: form.title.trim(),
-        severity: form.severity,
-        likelihood: likelihoodToNum(form.likelihood as any),
-        impact: Number(form.impact),
-        status: form.status,
-        description: form.description.trim() || '',
-        mitigation: form.mitigation.trim() || null,
-        projectId: form.projectId || null,
-        ownerId: form.ownerId,
-      });
-      setOpen(false);
-      setForm({ ...EMPTY });
+      if (editTarget) {
+        await updateRisk.mutateAsync({ id: editTarget.id, ...payload });
+        toast('Risk updated successfully');
+      } else {
+        await createRisk.mutateAsync(payload);
+        toast('Risk created successfully');
+      }
+      setOpen(false); setForm({ ...EMPTY });
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to log risk.');
+      setError(err?.message ?? 'Failed to save risk.');
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
-    try { await deleteRisk.mutateAsync(id); } finally { setConfirmDelete(null); }
+    try {
+      await deleteRisk.mutateAsync(id);
+      toast('Risk deleted', 'info');
+    } finally {
+      setConfirmDelete(null);
+    }
   }
 
-  if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading risks...</div>;
+  if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading risks…</div>;
 
-  const criticalRisks = (risks as any[]).filter(r => r.severity === 'critical' || r.severity === 'high');
+  const open_ = (risks as any[]).filter(r => r.status === 'open');
+  const mitigated = (risks as any[]).filter(r => r.status === 'mitigated');
+  const critical = (risks as any[]).filter(r => r.severity === 'critical');
+
+  function RiskItem({ r }: { r: any }) {
+    const owner = resourceById(r.ownerId);
+    const project = r.projectId ? projectById(r.projectId) : null;
+    const isConfirming = confirmDelete === r.id;
+    return (
+      <div className="px-4 py-3 hover:bg-paper-sunken/40 transition-colors">
+        <div className="flex items-start gap-2">
+          <AlertTriangle size={13} className={cn('mt-0.5 shrink-0', r.severity === 'critical' ? 'text-crit' : r.severity === 'high' ? 'text-amber-600' : 'text-amber-400')} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-xs font-medium text-ink">{r.title}</span>
+              <SeverityBadge severity={r.severity} />
+              {project && <Badge className="bg-info-bg text-info text-2xs">{(project as any).code}</Badge>}
+            </div>
+            {r.description && <p className="text-xs text-ink-muted mb-1">{r.description}</p>}
+            {r.mitigation && <p className="text-xs text-ink-muted italic">↳ {r.mitigation}</p>}
+            <div className="flex items-center gap-3 mt-1.5 text-2xs text-ink-muted">
+              {owner && <span className="flex items-center gap-1"><Avatar initials={(owner as any).initials} size="xs" />{(owner as any).name}</span>}
+              <span>L: {r.likelihood}</span>
+              <span>I: {r.impact}/5</span>
+              {r.identifiedAt && <span>{fmtDate(r.identifiedAt)}</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button onClick={() => openEdit(r)} className="text-ink-muted hover:text-brand-700 p-1 rounded hover:bg-brand-50 transition-colors">
+              <Pencil size={12} />
+            </button>
+            {isConfirming ? (
+              <>
+                <button onClick={() => handleDelete(r.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-2 py-0.5 rounded">Delete</button>
+                <button onClick={() => setConfirmDelete(null)} className="text-2xs text-ink-muted hover:text-ink px-1.5 py-0.5 rounded border border-line">✕</button>
+              </>
+            ) : (
+              <button onClick={() => setConfirmDelete(r.id)} className="text-ink-muted hover:text-crit p-1 rounded hover:bg-crit-bg transition-colors">
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <PageHeader
         eyebrow="Intelligence"
-        title="Risk and Issues"
-        subtitle={risks.length + ' risks tracked. ' + criticalRisks.length + ' critical or high. ' + issues.length + ' active issues.'}
-        actions={<Button variant="primary" onClick={() => setOpen(true)}><Plus size={13} /> Log risk</Button>}
+        title="Risks"
+        subtitle={risks.length + ' risks · ' + critical.length + ' critical · ' + open_.length + ' open'}
+        actions={<Button variant="primary" onClick={openCreate}><Plus size={13} /> New risk</Button>}
       />
-      <Tabs defaultValue="heatmap" className="p-6 space-y-4">
-        <TabsList>
-          <TabsTrigger value="heatmap">Risk Matrix</TabsTrigger>
-          <TabsTrigger value="list">Risk List</TabsTrigger>
-          <TabsTrigger value="issues">Issues</TabsTrigger>
-        </TabsList>
-        <TabsContent value="heatmap">
-          <Card>
-            <CardBody>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-xs">
-                  <thead>
-                    <tr>
-                      <th className="text-right pr-3 py-1 text-ink-muted font-normal w-20">Impact<br/>Likelihood</th>
-                      {MATRIX_COLS.map(c => <th key={c} className="text-center py-1 text-2xs font-medium text-ink-muted w-20">{c}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {MATRIX_ROWS.map(row => (
-                      <tr key={row}>
-                        <td className="text-right pr-3 py-1 text-2xs font-medium text-ink-muted">{row}</td>
-                        {MATRIX_COLS.map(col => {
-                          const cellRisks = (risks as any[]).filter(r => {
-                            const li = Math.round(likelihoodToNum(r.likelihood) * 5);
-                            const im = r.impact ?? severityToImpact(r.severity);
-                            return li === row && im === col;
-                          });
-                          return (
-                            <td key={col} className={cn('border p-1 align-top min-h-[60px] w-20', matrixCell(col, row))}>
-                              {cellRisks.map((r: any) => (
-                                <div key={r.id} title={r.title} className="text-2xs bg-white/80 rounded px-1 py-0.5 mb-0.5 truncate">{r.title}</div>
-                              ))}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardBody>
-          </Card>
-        </TabsContent>
-        <TabsContent value="list">
-          <Card>
-            <ul className="divide-y divide-line">
-              {(risks as any[]).map(r => {
-                const owner = resourceById(r.ownerId);
-                const product = r.productId ? productById(r.productId) : null;
-                const project = r.projectId ? projectById(r.projectId) : null;
-                const isConfirming = confirmDelete === r.id;
-                return (
-                  <li key={r.id} className="px-5 py-4 hover:bg-paper-sunken/40">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle size={14} className={cn('mt-0.5 shrink-0', r.severity === 'critical' ? 'text-crit' : r.severity === 'high' ? 'text-amber-600' : 'text-ink-muted')} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="text-sm font-medium text-ink">{r.title}</span>
-                          <SeverityBadge severity={r.severity} />
-                          {product && <Badge className="bg-brand-100 text-brand-800">{(product as any).shortName}</Badge>}
-                          {project && <Badge className="bg-info-bg text-info">{(project as any).code}</Badge>}
-                          <Badge className="bg-line-subtle text-ink-muted">{r.status}</Badge>
-                        </div>
-                        <p className="text-xs text-ink-muted mb-2">{r.description}</p>
-                        {r.mitigation && <p className="text-xs text-ok">{'Mitigation: ' + r.mitigation}</p>}
-                        <div className="flex items-center gap-3 mt-2 text-2xs text-ink-muted">
-                          {owner && <span className="flex items-center gap-1"><Avatar initials={(owner as any).initials} size="xs" />{(owner as any).name}</span>}
-                          {r.identifiedAt && <span>{fmtRelative(r.identifiedAt)}</span>}
-                        </div>
-                      </div>
-                      <div className="shrink-0">
-                        {isConfirming ? (
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => handleDelete(r.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-2 py-1 rounded">Delete</button>
-                            <button onClick={() => setConfirmDelete(null)} className="text-2xs text-ink-muted hover:text-ink px-2 py-1 rounded border border-line">Cancel</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setConfirmDelete(r.id)} className="text-ink-muted hover:text-crit p-1 rounded hover:bg-crit-bg transition-colors">
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-        </TabsContent>
-        <TabsContent value="issues">
-          <Card>
-            <ul className="divide-y divide-line">
-              {(issues as any[]).map((issue: any) => (
-                <li key={issue.id} className="px-5 py-4 hover:bg-paper-sunken/40">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle size={14} className="mt-0.5 shrink-0 text-crit" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="text-sm font-medium text-ink">{issue.title}</span>
-                        <Badge className={issueStatusTone[issue.status] ?? 'bg-line-subtle text-ink-muted'}>{issue.status}</Badge>
-                        <SeverityBadge severity={issue.severity} />
-                      </div>
-                      <p className="text-xs text-ink-muted">{issue.description}</p>
-                      {issue.resolution && <p className="text-xs text-ok mt-1">{'Resolution: ' + issue.resolution}</p>}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </TabsContent>
-      </Tabs>
 
-      <Dialog open={open} onOpenChange={setOpen} maxWidth="max-w-xl">
+      <div className="p-6">
+        <Tabs defaultValue="list">
+          <TabsList>
+            <TabsTrigger value="list">All risks ({risks.length})</TabsTrigger>
+            <TabsTrigger value="open">Open ({open_.length})</TabsTrigger>
+            <TabsTrigger value="critical">Critical ({critical.length})</TabsTrigger>
+            <TabsTrigger value="mitigated">Mitigated ({mitigated.length})</TabsTrigger>
+          </TabsList>
+          {[
+            { value: 'list', items: risks as any[] },
+            { value: 'open', items: open_ },
+            { value: 'critical', items: critical },
+            { value: 'mitigated', items: mitigated },
+          ].map(tab => (
+            <TabsContent key={tab.value} value={tab.value} className="mt-4">
+              <div className="border border-line rounded-md divide-y divide-line bg-paper-raised">
+                {tab.items.length === 0 && <p className="p-6 text-center text-xs text-ink-muted">No risks here.</p>}
+                {tab.items.map(r => <RiskItem key={r.id} r={r} />)}
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
         <form onSubmit={handleSubmit}>
-          <DialogHeader title="Log risk" onClose={() => setOpen(false)} />
+          <DialogHeader title={editTarget ? 'Edit risk' : 'New risk'} onClose={() => setOpen(false)} />
           <DialogBody className="space-y-3">
-            <Field label="Risk title" required>
-              <Input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Key person dependency on AI lead" required />
+            <Field label="Title" required>
+              <Input value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Key person dependency on lead architect" required />
             </Field>
             <FormRow>
               <Field label="Severity">
                 <Select value={form.severity} onChange={e => set('severity', e.target.value)} className="w-full">
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
-                </Select>
-              </Field>
-              <Field label="Likelihood">
-                <Select value={form.likelihood} onChange={e => set('likelihood', e.target.value)} className="w-full">
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </Select>
-              </Field>
-            </FormRow>
-            <FormRow>
-              <Field label="Impact" hint="1 (minor) to 5 (catastrophic)">
-                <Select value={form.impact} onChange={e => set('impact', e.target.value)} className="w-full">
-                  <option value="1">1 — Minor</option>
-                  <option value="2">2 — Moderate</option>
-                  <option value="3">3 — Significant</option>
-                  <option value="4">4 — Major</option>
-                  <option value="5">5 — Catastrophic</option>
+                  {SEVERITIES.map(s => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </Field>
               <Field label="Status">
                 <Select value={form.status} onChange={e => set('status', e.target.value)} className="w-full">
-                  <option value="open">Open</option>
-                  <option value="mitigating">Mitigating</option>
-                  <option value="monitoring">Monitoring</option>
-                  <option value="closed">Closed</option>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Project (optional)">
-                <Select value={form.projectId} onChange={e => set('projectId', e.target.value)} className="w-full">
-                  <option value="">-- none --</option>
-                  {(projects as any[]).map((p: any) => <option key={p.id} value={p.id}>{p.code}</option>)}
-                </Select>
+              <Field label="Likelihood (0–1)" hint="e.g. 0.3 = 30%">
+                <Input type="number" min="0" max="1" step="0.05" value={form.likelihood} onChange={e => set('likelihood', e.target.value)} />
               </Field>
-              <Field label="Owner" required>
-                <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full" required>
-                  <option value="">-- select owner --</option>
-                  {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              <Field label="Impact (1–5)">
+                <Select value={form.impact} onChange={e => set('impact', e.target.value)} className="w-full">
+                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
                 </Select>
               </Field>
             </FormRow>
-            <Field label="Description" hint="What is the risk and potential impact?">
-              <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="Describe the risk and its potential impact..." />
+            <FormRow>
+              <Field label="Owner" required>
+                <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full">
+                  <option value="">-- select --</option>
+                  {(resources as any[]).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Project">
+                <Select value={form.projectId} onChange={e => set('projectId', e.target.value)} className="w-full">
+                  <option value="">-- none --</option>
+                  {(projects as any[]).map(p => <option key={p.id} value={p.id}>{(p as any).code} – {(p as any).name}</option>)}
+                </Select>
+              </Field>
+            </FormRow>
+            <Field label="Description">
+              <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="What is the risk?" />
             </Field>
             <Field label="Mitigation plan">
-              <Textarea value={form.mitigation} onChange={e => set('mitigation', e.target.value)} rows={2} placeholder="How will this risk be mitigated or managed?" />
+              <Textarea value={form.mitigation} onChange={e => set('mitigation', e.target.value)} rows={2} placeholder="How will this be mitigated?" />
             </Field>
             {error && <p className="text-xs text-crit bg-crit-bg border border-crit/20 rounded px-3 py-2">{error}</p>}
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Logging...' : 'Log risk'}</Button>
+            <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Saving…' : editTarget ? 'Save changes' : 'Create risk'}</Button>
           </DialogFooter>
         </form>
       </Dialog>

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Boxes, ArrowUpRight, Trash2 } from 'lucide-react';
-import { useProducts, useLookups, useResources, useCreateProduct, useDeleteProduct } from '@/lib/hooks';
-import { Card, CardBody } from '@/components/ui/card';
+import { Plus, Boxes, ArrowUpRight, Pencil, Trash2 } from 'lucide-react';
+import { useProducts, useLookups, useResources, useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/lib/hooks';
+import { CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Dialog, DialogHeader, DialogBody, DialogFooter, Field, FormRow } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
 const maturityTone: Record<string, string> = {
@@ -27,46 +28,66 @@ export default function Products() {
   const { resourceById } = useLookups();
   const { data: resources = [] } = useResources();
   const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
+  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<any | null>(null);
   const [form, setForm] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+  function openCreate() { setEditTarget(null); setForm({ ...EMPTY }); setError(''); setOpen(true); }
+  function openEdit(p: any) {
+    setEditTarget(p);
+    setForm({
+      name: p.name ?? '', shortName: p.shortName ?? '',
+      strategicBucket: p.strategicBucket ?? '', maturity: p.maturity ?? 'concept',
+      vision: p.vision ?? '', problem: p.problem ?? '',
+      targetUsers: p.targetUsers ?? '', architectureStatus: p.architectureStatus ?? 'draft',
+      ownerId: p.ownerId ?? '',
+    });
+    setError(''); setOpen(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) { setError('Product name is required.'); return; }
     setSaving(true); setError('');
+    const payload = {
+      name: form.name.trim(),
+      shortName: form.shortName.trim() || form.name.trim().slice(0, 10),
+      strategicBucket: form.strategicBucket.trim() || 'General',
+      maturity: form.maturity,
+      vision: form.vision.trim() || '',
+      problem: form.problem.trim() || '',
+      targetUsers: form.targetUsers.trim() || '',
+      architectureStatus: form.architectureStatus,
+      ownerId: form.ownerId || null,
+    };
     try {
-      await createProduct.mutateAsync({
-        name: form.name.trim(),
-        shortName: form.shortName.trim() || form.name.trim().slice(0, 10),
-        strategicBucket: form.strategicBucket.trim() || 'General',
-        maturity: form.maturity,
-        vision: form.vision.trim() || '',
-        problem: form.problem.trim() || '',
-        targetUsers: form.targetUsers.trim() || '',
-        architectureStatus: form.architectureStatus,
-        ownerId: form.ownerId || null,
-      });
-      setOpen(false);
-      setForm({ ...EMPTY });
+      if (editTarget) {
+        await updateProduct.mutateAsync({ id: editTarget.id, ...payload });
+        toast('Product updated successfully');
+      } else {
+        await createProduct.mutateAsync(payload);
+        toast('Product created successfully');
+      }
+      setOpen(false); setForm({ ...EMPTY });
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to create product.');
-    } finally {
-      setSaving(false);
-    }
+      setError(err?.message ?? 'Failed to save product.');
+    } finally { setSaving(false); }
   }
 
   async function handleDelete(id: string) {
-    try { await deleteProduct.mutateAsync(id); } finally { setConfirmDelete(null); }
+    try { await deleteProduct.mutateAsync(id); toast('Product deleted', 'info'); }
+    finally { setConfirmDelete(null); }
   }
 
-  if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading products...</div>;
+  if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading products…</div>;
 
   return (
     <div>
@@ -74,7 +95,7 @@ export default function Products() {
         eyebrow="Library"
         title="Products"
         subtitle={products.length + ' products across ' + new Set((products as any[]).map((p: any) => p.strategicBucket)).size + ' strategic buckets.'}
-        actions={<Button variant="primary" onClick={() => setOpen(true)}><Plus size={13} /> New product</Button>}
+        actions={<Button variant="primary" onClick={openCreate}><Plus size={13} /> New product</Button>}
       />
 
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -91,6 +112,9 @@ export default function Products() {
                 </div>
                 <div className="flex items-center gap-1">
                   <Badge className={maturityTone[p.maturity] ?? 'bg-line-subtle text-ink-muted'}>{p.maturity}</Badge>
+                  <button onClick={() => openEdit(p)} className="text-ink-muted hover:text-brand-700 p-1 rounded hover:bg-brand-50 transition-colors ml-1">
+                    <Pencil size={12} />
+                  </button>
                   {isConfirming ? (
                     <div className="flex items-center gap-1 ml-1">
                       <button onClick={() => handleDelete(p.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-2 py-0.5 rounded">Delete</button>
@@ -130,7 +154,7 @@ export default function Products() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <form onSubmit={handleSubmit}>
-          <DialogHeader title="New product" onClose={() => setOpen(false)} />
+          <DialogHeader title={editTarget ? 'Edit product' : 'New product'} onClose={() => setOpen(false)} />
           <DialogBody className="space-y-3">
             <FormRow>
               <Field label="Product name" required>
@@ -146,27 +170,20 @@ export default function Products() {
               </Field>
               <Field label="Maturity">
                 <Select value={form.maturity} onChange={e => set('maturity', e.target.value)} className="w-full">
-                  <option value="concept">Concept</option>
-                  <option value="mvp">MVP</option>
-                  <option value="beta">Beta</option>
-                  <option value="ga">GA</option>
-                  <option value="mature">Mature</option>
+                  {['concept','mvp','beta','ga','mature'].map(m => <option key={m} value={m}>{m}</option>)}
                 </Select>
               </Field>
             </FormRow>
             <FormRow>
               <Field label="Architecture status">
                 <Select value={form.architectureStatus} onChange={e => set('architectureStatus', e.target.value)} className="w-full">
-                  <option value="draft">Draft</option>
-                  <option value="reviewed">Reviewed</option>
-                  <option value="approved">Approved</option>
-                  <option value="implemented">Implemented</option>
+                  {['draft','reviewed','approved','implemented'].map(s => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </Field>
               <Field label="Owner">
                 <Select value={form.ownerId} onChange={e => set('ownerId', e.target.value)} className="w-full">
                   <option value="">-- none --</option>
-                  {(resources as any[]).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  {(resources as any[]).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </Select>
               </Field>
             </FormRow>
@@ -177,13 +194,13 @@ export default function Products() {
               <Input value={form.targetUsers} onChange={e => set('targetUsers', e.target.value)} placeholder="e.g. Data engineers, business analysts" />
             </Field>
             <Field label="Vision / description">
-              <Textarea value={form.vision} onChange={e => set('vision', e.target.value)} rows={2} placeholder="Describe the product vision and target outcomes..." />
+              <Textarea value={form.vision} onChange={e => set('vision', e.target.value)} rows={2} placeholder="Describe the product vision…" />
             </Field>
             {error && <p className="text-xs text-crit bg-crit-bg border border-crit/20 rounded px-3 py-2">{error}</p>}
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Creating...' : 'Create product'}</Button>
+            <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Saving…' : editTarget ? 'Save changes' : 'Create product'}</Button>
           </DialogFooter>
         </form>
       </Dialog>

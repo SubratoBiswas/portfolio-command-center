@@ -277,3 +277,53 @@ export function useAuditLogs(params: { objectType?: string; objectId?: string; a
     staleTime: 30_000,
   });
 }
+
+export function useUpdateProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) => api.projects.update(id, data),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: k.projects });
+      qc.invalidateQueries({ queryKey: ['project', v.id] });
+    },
+  });
+}
+
+export function useUpdateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) => api.products.update(id, data),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: k.products });
+      qc.invalidateQueries({ queryKey: ['product', v.id] });
+    },
+  });
+}
+
+export function useUpdateOpportunity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) => api.opportunities.update(id, data),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: k.opportunities });
+      qc.invalidateQueries({ queryKey: ['opportunity', v.id] });
+      qc.invalidateQueries({ queryKey: k.pipelineSummary });
+    },
+  });
+}
+
+export function useUpdateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) => api.tasks.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.tasks }),
+  });
+}
+
+export function useUpdateRisk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) => api.risks.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.risks }),
+  });
+}

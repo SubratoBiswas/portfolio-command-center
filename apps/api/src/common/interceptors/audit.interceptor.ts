@@ -9,6 +9,8 @@ import { AuditLogService } from '../../audit-log/audit-log.service';
 
 // HTTP methods that mutate state — these are the ones we audit
 const AUDIT_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+// Segments to skip when extracting entity type — handles /api/v1/products → 'products'
+const PATH_PREFIXES = /^(api|v\d+)$/i;
 
 // Derive a human-readable action from HTTP method
 function methodToAction(method: string): string {
@@ -23,17 +25,17 @@ function methodToAction(method: string): string {
 
 // Extract the object type from a URL path like /projects/abc123 → 'projects'
 // or /audit-logs → 'audit-logs'
+// Extract the object type from a URL path, skipping common prefixes like /api/v1/
 function pathToObjectType(path: string): string {
-  // Strip leading slash and query string
   const clean = path.replace(/^\//, '').split('?')[0];
-  // First segment is the resource
-  return clean.split('/')[0] ?? 'unknown';
+  const parts = clean.split('/').filter(p => p && !PATH_PREFIXES.test(p));
+  return parts[0] ?? 'unknown';
 }
 
-// Extract the object ID from the URL (second path segment if present)
+// Extract the object ID from the URL, skipping prefix segments
 function pathToObjectId(path: string): string {
   const clean = path.replace(/^\//, '').split('?')[0];
-  const parts = clean.split('/');
+  const parts = clean.split('/').filter(p => p && !PATH_PREFIXES.test(p));
   return parts[1] ?? 'n/a';
 }
 

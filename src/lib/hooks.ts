@@ -327,3 +327,78 @@ export function useUpdateRisk() {
     onSuccess: () => qc.invalidateQueries({ queryKey: k.risks }),
   });
 }
+
+// ---- Resource mutations ----
+export function useCreateResource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.resources.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.resources }),
+  });
+}
+export function useUpdateResource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) => api.resources.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.resources }),
+  });
+}
+export function useDeleteResource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.resources.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: k.resources });
+      qc.invalidateQueries({ queryKey: k.allocations });
+    },
+  });
+}
+
+// ---- Allocation mutations ----
+export function useCreateAllocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.allocations.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.allocations }),
+  });
+}
+export function useUpdateAllocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) => api.allocations.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.allocations }),
+  });
+}
+export function useDeleteAllocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.allocations.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.allocations }),
+  });
+}
+
+// ---- Location mutations ----
+export function useCreateLocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => api.locations.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+  });
+}
+export function useUpdateLocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) => api.locations.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+  });
+}
+export function useDeleteLocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.locations.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['locations'] });
+      qc.invalidateQueries({ queryKey: k.resources });
+    },
+  });
+}

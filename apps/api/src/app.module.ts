@@ -22,6 +22,7 @@ import { TranscriptsModule } from './transcripts/transcripts.module';
 import { ActionItemsModule } from './action-items/action-items.module';
 import { ReportsModule } from './reports/reports.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
+import { LocationsModule } from './locations/locations.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 
@@ -55,6 +56,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
     ActionItemsModule,
     ReportsModule,
     AuditLogModule,
+    LocationsModule,
   ],
   providers: [
     // Apply JwtAuthGuard globally — routes opt-out with @Public()

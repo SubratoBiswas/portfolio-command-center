@@ -66,7 +66,16 @@ export const api = {
 
   resources: {
     list: () => USE_API ? call<typeof seed.resources>('GET', '/resources') : Promise.resolve(seed.resources),
-    get: (id: string) => USE_API ? call<typeof seed.resources[number]>('GET', `/resources/${id}`) : Promise.resolve(seed.resourceById(id)),
+    get: (id: string) => USE_API ? call<any>('GET', `/resources/${id}`) : Promise.resolve(seed.resourceById(id)),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/resources', data)
+      : Promise.resolve((() => { const r = { ...data, id: `r-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; (seed.resources as any[]).push(r); return r; })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/resources/${id}`, data)
+      : Promise.resolve((() => { const r = (seed.resources as any[]).find(r => r.id === id); if (r) Object.assign(r, data); return r; })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/resources/${id}`)
+      : Promise.resolve((() => { const i = (seed.resources as any[]).findIndex(r => r.id === id); if (i !== -1) (seed.resources as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   clients: {
     list: () => USE_API ? call<typeof seed.clients>('GET', '/clients') : Promise.resolve(seed.clients),
@@ -191,9 +200,27 @@ export const api = {
   },
   allocations: {
     list: () => USE_API ? call<typeof seed.allocations>('GET', '/allocations') : Promise.resolve(seed.allocations),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/allocations', data)
+      : Promise.resolve((() => { const r = { ...data, id: `al-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; (seed.allocations as any[]).push(r); return r; })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/allocations/${id}`, data)
+      : Promise.resolve((() => { const a = (seed.allocations as any[]).find(a => a.id === id); if (a) Object.assign(a, data); return a; })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/allocations/${id}`)
+      : Promise.resolve((() => { const i = (seed.allocations as any[]).findIndex(a => a.id === id); if (i !== -1) (seed.allocations as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   locations: {
-    list: () => Promise.resolve(seed.locations), // static data, always from seed
+    list: () => USE_API ? call<any[]>('GET', '/locations') : Promise.resolve(seed.locations),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/locations', data)
+      : Promise.resolve((() => { const r = { ...data, id: `loc-${Date.now()}` }; (seed.locations as any[]).push(r); return r; })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/locations/${id}`, data)
+      : Promise.resolve((() => { const l = (seed.locations as any[]).find(l => l.id === id); if (l) Object.assign(l, data); return l; })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/locations/${id}`)
+      : Promise.resolve((() => { const i = (seed.locations as any[]).findIndex(l => l.id === id); if (i !== -1) (seed.locations as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   workstreams: {
     list: () => Promise.resolve(seed.workstreams),

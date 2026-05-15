@@ -229,3 +229,43 @@ export function useCommitTranscript() {
     },
   });
 }
+
+// ---- Delete mutations ----
+export function useDeleteProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.projects.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.projects }),
+  });
+}
+export function useDeleteOpportunity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.opportunities.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: k.opportunities });
+      qc.invalidateQueries({ queryKey: k.pipelineSummary });
+    },
+  });
+}
+export function useDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.products.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.products }),
+  });
+}
+export function useDeleteTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.tasks.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.tasks }),
+  });
+}
+export function useDeleteRisk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.risks.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: k.risks }),
+  });
+}

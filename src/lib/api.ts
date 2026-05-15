@@ -81,6 +81,9 @@ export const api = {
           const r = { ...data, id: `prod-${Date.now()}`, aiReadiness: 0, deliveryReadiness: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.products as any[]).push(r); return r;
         })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/products/${id}`)
+      : Promise.resolve((() => { const i = (seed.products as any[]).findIndex(p => p.id === id); if (i !== -1) (seed.products as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   opportunities: {
     list: () => USE_API ? call<typeof seed.opportunities>('GET', '/opportunities') : Promise.resolve(seed.opportunities),
@@ -91,6 +94,9 @@ export const api = {
           const r = { ...data, id: `opp-${Date.now()}`, lastInteractionAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.opportunities as any[]).push(r); return r;
         })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/opportunities/${id}`)
+      : Promise.resolve((() => { const i = (seed.opportunities as any[]).findIndex(o => o.id === id); if (i !== -1) (seed.opportunities as any[]).splice(i, 1); return { id, deleted: true }; })()),
     stale: (days = 10) =>
       USE_API
         ? call<typeof seed.opportunities>('GET', `/opportunities/stale?days=${days}`)
@@ -116,6 +122,9 @@ export const api = {
           const r = { ...data, id: `proj-${Date.now()}`, spent: 0, rag: data.rag ?? 'green', status: data.status ?? 'not_started', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.projects as any[]).push(r); return r;
         })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/projects/${id}`)
+      : Promise.resolve((() => { const i = (seed.projects as any[]).findIndex(p => p.id === id); if (i !== -1) (seed.projects as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   tasks: {
     list: () => USE_API ? call<typeof seed.tasks>('GET', '/tasks') : Promise.resolve(seed.tasks),
@@ -125,6 +134,9 @@ export const api = {
           const r = { ...data, id: `task-${Date.now()}`, status: data.status ?? 'not_started', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.tasks as any[]).push(r); return r;
         })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/tasks/${id}`)
+      : Promise.resolve((() => { const i = (seed.tasks as any[]).findIndex(t => t.id === id); if (i !== -1) (seed.tasks as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   risks: {
     list: () => USE_API ? call<typeof seed.risks>('GET', '/risks') : Promise.resolve(seed.risks),
@@ -134,6 +146,9 @@ export const api = {
           const r = { ...data, id: `risk-${Date.now()}`, identifiedAt: new Date().toISOString(), status: data.status ?? 'open', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
           (seed.risks as any[]).push(r); return r;
         })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/risks/${id}`)
+      : Promise.resolve((() => { const i = (seed.risks as any[]).findIndex(r => r.id === id); if (i !== -1) (seed.risks as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   issues: {
     list: () => USE_API ? call<typeof seed.issues>('GET', '/issues') : Promise.resolve(seed.issues),

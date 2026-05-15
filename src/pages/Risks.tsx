@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, AlertTriangle, AlertCircle } from 'lucide-react';
-import { useRisks, useIssues, useLookups, useResources, useProjects, useCreateRisk } from '@/lib/hooks';
+import { Plus, AlertTriangle, AlertCircle, Trash2 } from 'lucide-react';
+import { useRisks, useIssues, useLookups, useResources, useProjects, useCreateRisk, useDeleteRisk } from '@/lib/hooks';
 import { Card, CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
@@ -46,11 +46,13 @@ export default function Risks() {
   const { data: resources = [] } = useResources();
   const { data: projects = [] } = useProjects();
   const createRisk = useCreateRisk();
+  const deleteRisk = useDeleteRisk();
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -78,6 +80,10 @@ export default function Risks() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleDelete(id: string) {
+    try { await deleteRisk.mutateAsync(id); } finally { setConfirmDelete(null); }
   }
 
   if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading risks...</div>;
@@ -142,6 +148,7 @@ export default function Risks() {
                 const owner = resourceById(r.ownerId);
                 const product = r.productId ? productById(r.productId) : null;
                 const project = r.projectId ? projectById(r.projectId) : null;
+                const isConfirming = confirmDelete === r.id;
                 return (
                   <li key={r.id} className="px-5 py-4 hover:bg-paper-sunken/40">
                     <div className="flex items-start gap-3">
@@ -160,6 +167,18 @@ export default function Risks() {
                           {owner && <span className="flex items-center gap-1"><Avatar initials={(owner as any).initials} size="xs" />{(owner as any).name}</span>}
                           {r.identifiedAt && <span>{fmtRelative(r.identifiedAt)}</span>}
                         </div>
+                      </div>
+                      <div className="shrink-0">
+                        {isConfirming ? (
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => handleDelete(r.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-2 py-1 rounded">Delete</button>
+                            <button onClick={() => setConfirmDelete(null)} className="text-2xs text-ink-muted hover:text-ink px-2 py-1 rounded border border-line">Cancel</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setConfirmDelete(r.id)} className="text-ink-muted hover:text-crit p-1 rounded hover:bg-crit-bg transition-colors">
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </li>

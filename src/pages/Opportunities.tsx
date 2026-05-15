@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, LayoutGrid, Rows, TrendingUp, Clock, AlertCircle } from 'lucide-react';
-import { useOpportunities, useLookups, useClients, useResources, useCreateOpportunity } from '@/lib/hooks';
+import { Plus, LayoutGrid, Rows, TrendingUp, Clock, AlertCircle, Trash2 } from 'lucide-react';
+import { useOpportunities, useLookups, useClients, useResources, useCreateOpportunity, useDeleteOpportunity } from '@/lib/hooks';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
@@ -18,8 +18,6 @@ const STAGES: { key: string; label: string; tone: string }[] = [
   { key: 'negotiate', label: 'Negotiate', tone: 'bg-amber-100 text-amber-800' },
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
-
 const EMPTY = {
   name: '', clientId: '', stage: 'qualify', value: '', probability: '50',
   expectedCloseDate: '', ownerId: '', description: '', strategicImportance: 'medium',
@@ -33,11 +31,13 @@ export default function Opportunities() {
   const { data: clients = [] } = useClients();
   const { data: resources = [] } = useResources();
   const createOpportunity = useCreateOpportunity();
+  const deleteOpportunity = useDeleteOpportunity();
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -68,6 +68,10 @@ export default function Opportunities() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleDelete(id: string) {
+    try { await deleteOpportunity.mutateAsync(id); } finally { setConfirmDelete(null); }
   }
 
   if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading pipeline...</div>;
@@ -116,10 +120,23 @@ export default function Opportunities() {
                 {cols.map(o => {
                   const client = clientById(o.clientId);
                   const stale = daysFromNow(o.lastInteractionAt) <= -10;
+                  const isConfirming = confirmDelete === o.id;
                   return (
                     <Card key={o.id} className="hover:shadow-md transition-shadow">
                       <div className="p-3 space-y-2">
-                        <Link to={'/opportunities/' + o.id} className="text-xs font-medium text-ink hover:text-brand-700 block leading-snug">{o.name}</Link>
+                        <div className="flex items-start justify-between gap-1">
+                          <Link to={'/opportunities/' + o.id} className="text-xs font-medium text-ink hover:text-brand-700 block leading-snug flex-1">{o.name}</Link>
+                          {isConfirming ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button onClick={() => handleDelete(o.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-1.5 py-0.5 rounded">Del</button>
+                              <button onClick={() => setConfirmDelete(null)} className="text-2xs text-ink-muted hover:text-ink px-1 py-0.5 rounded">✕</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setConfirmDelete(o.id)} className="text-ink-muted hover:text-crit p-0.5 rounded hover:bg-crit-bg transition-colors shrink-0">
+                              <Trash2 size={11} />
+                            </button>
+                          )}
+                        </div>
                         <p className="text-2xs text-ink-muted">{(client as any)?.name}</p>
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-ink">{fmtCurrency(Number(o.value), { compact: true })}</span>
@@ -148,6 +165,7 @@ export default function Opportunities() {
                     <th className="text-right px-4 py-2 font-medium">Prob</th>
                     <th className="text-left px-4 py-2 font-medium">Close</th>
                     <th className="text-left px-4 py-2 font-medium">Owner</th>
+                    <th className="px-4 py-2" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -156,6 +174,7 @@ export default function Opportunities() {
                     const owner = resourceById(o.ownerId);
                     const stale = daysFromNow(o.lastInteractionAt) <= -10;
                     const stageMeta = STAGES.find(s => s.key === o.stage);
+                    const isConfirming = confirmDelete === o.id;
                     return (
                       <tr key={o.id} className="hover:bg-paper-sunken/30">
                         <td className="px-4 py-3">
@@ -168,6 +187,18 @@ export default function Opportunities() {
                         <td className="px-4 py-3 text-right text-xs text-ink-muted">{o.probability}%</td>
                         <td className="px-4 py-3 text-xs text-ink-muted">{fmtDate(o.expectedCloseDate)}</td>
                         <td className="px-4 py-3">{owner && <Avatar initials={(owner as any).initials} size="xs" title={(owner as any).name} />}</td>
+                        <td className="px-4 py-3 text-right">
+                          {isConfirming ? (
+                            <div className="flex items-center gap-1 justify-end">
+                              <button onClick={() => handleDelete(o.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-2 py-1 rounded">Delete</button>
+                              <button onClick={() => setConfirmDelete(null)} className="text-2xs text-ink-muted hover:text-ink px-2 py-1 rounded border border-line">Cancel</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setConfirmDelete(o.id)} className="text-ink-muted hover:text-crit p-1 rounded hover:bg-crit-bg transition-colors">
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

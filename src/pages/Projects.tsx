@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus } from 'lucide-react';
-import { useProjects, useLookups, useClients, useResources, useCreateProject } from '@/lib/hooks';
+import { Plus, Trash2 } from 'lucide-react';
+import { useProjects, useLookups, useClients, useResources, useCreateProject, useDeleteProject } from '@/lib/hooks';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
@@ -24,11 +24,13 @@ export default function Projects() {
   const { data: clients = [] } = useClients();
   const { data: resources = [] } = useResources();
   const createProject = useCreateProject();
+  const deleteProject = useDeleteProject();
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -63,6 +65,10 @@ export default function Projects() {
     }
   }
 
+  async function handleDelete(id: string) {
+    try { await deleteProject.mutateAsync(id); } finally { setConfirmDelete(null); }
+  }
+
   if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading projects...</div>;
 
   const ps = projects as any[];
@@ -87,6 +93,7 @@ export default function Projects() {
                   <th className="text-left px-4 py-2 font-medium">Timeline</th>
                   <th className="text-left px-4 py-2 font-medium">Budget</th>
                   <th className="text-left px-4 py-2 font-medium">Owner</th>
+                  <th className="px-4 py-2" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -95,6 +102,7 @@ export default function Projects() {
                   const owner = resourceById(p.ownerId);
                   const pctSpent = p.budget && p.spent ? (p.spent / p.budget) * 100 : 0;
                   const daysLeft = daysFromNow(p.endDate);
+                  const isConfirming = confirmDelete === p.id;
                   return (
                     <tr key={p.id} className="hover:bg-paper-sunken/30 transition-colors">
                       <td className="px-4 py-3">
@@ -122,6 +130,18 @@ export default function Projects() {
                         ) : <span className="text-xs text-ink-muted">—</span>}
                       </td>
                       <td className="px-4 py-3">{owner && <Avatar initials={(owner as any).initials} size="xs" title={(owner as any).name} />}</td>
+                      <td className="px-4 py-3 text-right">
+                        {isConfirming ? (
+                          <div className="flex items-center gap-1 justify-end">
+                            <button onClick={() => handleDelete(p.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-2 py-1 rounded">Delete</button>
+                            <button onClick={() => setConfirmDelete(null)} className="text-2xs text-ink-muted hover:text-ink px-2 py-1 rounded border border-line">Cancel</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setConfirmDelete(p.id)} className="text-ink-muted hover:text-crit p-1 rounded hover:bg-crit-bg transition-colors">
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

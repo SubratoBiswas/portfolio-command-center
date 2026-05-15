@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Boxes, ArrowUpRight } from 'lucide-react';
-import { useProducts, useLookups, useResources, useCreateProduct } from '@/lib/hooks';
+import { Plus, Boxes, ArrowUpRight, Trash2 } from 'lucide-react';
+import { useProducts, useLookups, useResources, useCreateProduct, useDeleteProduct } from '@/lib/hooks';
 import { Card, CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
@@ -27,11 +27,13 @@ export default function Products() {
   const { resourceById } = useLookups();
   const { data: resources = [] } = useResources();
   const createProduct = useCreateProduct();
+  const deleteProduct = useDeleteProduct();
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -60,6 +62,10 @@ export default function Products() {
     }
   }
 
+  async function handleDelete(id: string) {
+    try { await deleteProduct.mutateAsync(id); } finally { setConfirmDelete(null); }
+  }
+
   if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading products...</div>;
 
   return (
@@ -75,14 +81,27 @@ export default function Products() {
         {(products as any[]).map((p: any) => {
           const owner = resourceById(p.ownerId);
           const productPath = '/products/' + p.id;
+          const isConfirming = confirmDelete === p.id;
           return (
-            <CardBody key={p.id} className="hover:shadow-md transition-shadow space-y-3">
+            <CardBody key={p.id} className="hover:shadow-md transition-shadow space-y-3 relative">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
                   <Boxes size={14} className="text-brand-700 shrink-0 mt-0.5" />
                   <Link to={productPath} className="text-sm font-semibold text-ink hover:text-brand-700">{p.name}</Link>
                 </div>
-                <Badge className={maturityTone[p.maturity] ?? 'bg-line-subtle text-ink-muted'}>{p.maturity}</Badge>
+                <div className="flex items-center gap-1">
+                  <Badge className={maturityTone[p.maturity] ?? 'bg-line-subtle text-ink-muted'}>{p.maturity}</Badge>
+                  {isConfirming ? (
+                    <div className="flex items-center gap-1 ml-1">
+                      <button onClick={() => handleDelete(p.id)} className="text-2xs text-white bg-crit hover:bg-crit/80 px-2 py-0.5 rounded">Delete</button>
+                      <button onClick={() => setConfirmDelete(null)} className="text-2xs text-ink-muted hover:text-ink px-1.5 py-0.5 rounded border border-line">✕</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDelete(p.id)} className="text-ink-muted hover:text-crit p-1 rounded hover:bg-crit-bg transition-colors ml-1">
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-xs text-ink-muted leading-relaxed line-clamp-2">{p.vision}</p>
               <div className="space-y-1.5">

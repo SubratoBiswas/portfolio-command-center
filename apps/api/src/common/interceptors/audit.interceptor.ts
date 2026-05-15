@@ -10,7 +10,7 @@ import { AuditLogService } from '../../audit-log/audit-log.service';
 // HTTP methods that mutate state — these are the ones we audit
 const AUDIT_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 // Segments to skip when extracting entity type — handles /api/v1/products → 'products'
-const PATH_PREFIXES = /^(api|v\d+)$/i;
+
 
 // Derive a human-readable action from HTTP method
 function methodToAction(method: string): string {
@@ -23,8 +23,8 @@ function methodToAction(method: string): string {
   }
 }
 
-// Extract the object type from a URL path like /projects/abc123 → 'projects'
-// or /audit-logs → 'audit-logs'
+const PATH_PREFIXES = /^(api|v\d+)$/i;
+
 // Extract the object type from a URL path, skipping common prefixes like /api/v1/
 function pathToObjectType(path: string): string {
   const clean = path.replace(/^\//, '').split('?')[0];

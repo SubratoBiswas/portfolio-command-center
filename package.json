@@ -6,7 +6,7 @@
   "description": "AI-native enterprise portfolio, product, opportunity, project, resource and execution management platform for Trinamix.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint ."
   },

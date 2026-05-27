@@ -154,7 +154,7 @@ export function AIAssistant({ open, onOpenChange }: AIAssistantProps) {
         <div className="relative">
           <textarea
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDraft(e.target.value)}
             placeholder="Ask anything about the portfolio…"
             rows={2}
             className="w-full text-sm bg-paper-raised border border-line rounded-sm px-3 py-2 pr-10 resize-none focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand-100 placeholder:text-ink-subtle"

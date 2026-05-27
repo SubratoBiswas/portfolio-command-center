@@ -5,7 +5,7 @@
 // =============================================================================
 
 import * as seed from '@/data/seed';
-
+import { aiLabsOpportunities } from '@/data/aiLabsOpportunities';
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000/api/v1';
 const USE_API = (import.meta.env.VITE_USE_API as string | undefined) === 'true';
 
@@ -98,34 +98,58 @@ export const api = {
       : Promise.resolve((() => { const i = (seed.products as any[]).findIndex(p => p.id === id); if (i !== -1) (seed.products as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   opportunities: {
-    list: () => USE_API ? call<typeof seed.opportunities>('GET', '/opportunities') : Promise.resolve(seed.opportunities),
-    get: (id: string) => USE_API ? call<any>('GET', `/opportunities/${id}`) : Promise.resolve(seed.opportunityById(id)),
+    list: () => USE_API
+      ? call<any[]>('GET', '/opportunities')
+      : Promise.resolve(aiLabsOpportunities as any[]),
+
+    get: (id: string) => USE_API
+      ? call<any>('GET', `/opportunities/${id}`)
+      : Promise.resolve((aiLabsOpportunities as any[]).find(o => o.id === id)),
+
     create: (data: any) => USE_API
       ? call<any>('POST', '/opportunities', data)
       : Promise.resolve((() => {
-          const r = { ...data, id: `opp-${Date.now()}`, lastInteractionAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-          (seed.opportunities as any[]).push(r); return r;
+          const r = { ...data, id: `opp-${Date.now()}`,
+            lastInteractionAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString() };
+          (aiLabsOpportunities as any[]).push(r); return r;
         })()),
+
     update: (id: string, data: Record<string, any>) => USE_API
       ? call<any>('PATCH', `/opportunities/${id}`, data)
-      : Promise.resolve((() => { const o = (seed.opportunities as any[]).find(o => o.id === id); if (o) Object.assign(o, data); return o; })()),
+      : Promise.resolve((() => {
+          const o = (aiLabsOpportunities as any[]).find(o => o.id === id);
+          if (o) Object.assign(o, data, { updatedAt: new Date().toISOString() });
+          return o;
+        })()),
+
     delete: (id: string) => USE_API
       ? call<any>('DELETE', `/opportunities/${id}`)
-      : Promise.resolve((() => { const i = (seed.opportunities as any[]).findIndex(o => o.id === id); if (i !== -1) (seed.opportunities as any[]).splice(i, 1); return { id, deleted: true }; })()),
+      : Promise.resolve((() => {
+          const i = (aiLabsOpportunities as any[]).findIndex(o => o.id === id);
+          if (i !== -1) (aiLabsOpportunities as any[]).splice(i, 1);
+          return { id, deleted: true };
+        })()),
+
     stale: (days = 10) =>
       USE_API
-        ? call<typeof seed.opportunities>('GET', `/opportunities/stale?days=${days}`)
-        : Promise.resolve(seed.opportunities.filter(o => {
-            const lastTouch = new Date(o.lastInteractionAt).getTime();
-            return lastTouch < Date.now() - days * 86400000 && !['closed_won','closed_lost'].includes(o.stage);
+        ? call<any[]>('GET', `/opportunities/stale?days=${days}`)
+        : Promise.resolve((aiLabsOpportunities as any[]).filter(o => {
+            const last = new Date(o.lastInteractionAt).getTime();
+            return last < Date.now() - days * 86400000 &&
+              !['deal_closed','not_interested','not_legit'].includes(o.aiStage);
           })),
+
     pipelineSummary: () =>
       USE_API
-        ? call<Array<{ stage: string; count: number; value: number }>>('GET', '/opportunities/pipeline-summary')
+        ? call<any[]>('GET', '/opportunities/pipeline-summary')
         : Promise.resolve(
-            Object.entries(seed.opportunities.reduce<Record<string,{ count: number; value: number }>>((acc, o) => {
-              const k = o.stage; acc[k] ??= { count: 0, value: 0 }; acc[k].count++; acc[k].value += o.value; return acc;
-            }, {})).map(([stage, agg]) => ({ stage, ...agg })),
+            Object.entries((aiLabsOpportunities as any[]).reduce<Record<string, { count: number; value: number }>>((acc, o) => {
+              const key = o.aiStage ?? o.stage;
+              acc[key] ??= { count: 0, value: 0 }; acc[key].count++; acc[key].value += (o.value ?? 0);
+              return acc;
+            }, {})).map(([stage, agg]) => ({ stage, ...agg }))
           ),
   },
   projects: {

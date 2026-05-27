@@ -134,7 +134,7 @@ export default function ProductDetail() {
             <Card>
               <CardHeader><CardTitle>Team</CardTitle></CardHeader>
               <CardBody>
-                <AvatarStack resources={teamResources.map((r: any) => ({ initials: r.initials, name: r.name }))} max={8} />
+                <AvatarStack items={teamResources.map((r: any) => r.initials ?? r.name ?? '')} max={8} />
               </CardBody>
             </Card>
           )}

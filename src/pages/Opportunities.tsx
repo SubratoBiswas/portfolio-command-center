@@ -298,38 +298,22 @@ export default function Opportunities() {
     e.preventDefault(); if (!oppForm.name.trim()) { setOppErr('Company name is required.'); return; }
     setOppSaving(true); setOppErr('');
     const isCreate = !oppEdit;
-  const payload = {
-    // ── Core fields (required for create, optional for update) ────────────
-    name:                 oppForm.name.trim(),
-    description:          oppForm.followUpNotes || oppForm.name.trim(),  // fallback
-    stage:                oppForm.aiStage        ?? 'reply_sent',
-    aiStage:              oppForm.aiStage        ?? 'reply_sent',
-    value:                oppForm.value ? Number(oppForm.value) : 0,
-    probability:          50,
-    strategicImportance:  'medium',
-    lastInteractionAt:    new Date().toISOString(),
-    expectedCloseDate:    new Date(Date.now() + 90 * 86400000).toISOString(),
-    nextSteps:            oppForm.nextSteps      || undefined,
-    // ── Required relational fields (create only) ──────────────────────────
-    ...(isCreate && {
-      // Use first available resource as owner; admin can update after creation
-      clientId:   'c-roku',        // default — user should update in list
-      ownerId:    'r-viral',       // default — user should update in list
+  const payload: Record<string, any> = {
+    // ── Fields that exist in the Prisma Opportunity schema ──────────────────
+    name:               oppForm.name.trim(),
+    description:        oppForm.followUpNotes?.trim() || oppForm.name.trim(),
+    stage:              oppForm.aiStage               ?? 'qualify',
+    value:              oppForm.value ? Number(oppForm.value) : 0,
+    probability:        50,
+    strategicImportance: 'medium',
+    lastInteractionAt:  new Date().toISOString(),
+    nextSteps:          oppForm.nextSteps || null,
+    // expectedCloseDate only for new records
+    ...(oppEdit ? {} : {
+      expectedCloseDate: new Date(Date.now() + 90 * 86400000).toISOString(),
+      clientId:          'c-roku',   // default — can be changed via DB or future picker
+      ownerId:           'r-viral',  // default — can be changed via DB or future picker
     }),
-    // ── AI Labs custom fields ─────────────────────────────────────────────
-    contactName:          oppForm.contactName          || undefined,
-    contactTitle:         oppForm.contactTitle         || undefined,
-    contactEmail:         oppForm.contactEmail         || undefined,
-    trinamixOwner:        oppForm.trinamixOwner        || undefined,
-    dealRating:           Number(oppForm.dealRating)   || 0,
-    copyOracle:           Boolean(oppForm.copyOracle),
-    emailOwner:           oppForm.emailOwner           || undefined,
-    interestedScenarios:  oppForm.interestedScenarios  ?? [],
-    followUpNotes:        oppForm.followUpNotes        || undefined,
-    urgentNotes:          oppForm.urgentNotes          || undefined,
-    lastReviewed:         oppForm.lastReviewed
-                            ? new Date(oppForm.lastReviewed).toISOString()
-                            : undefined,
   };
     try {
       if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, ...payload }); }

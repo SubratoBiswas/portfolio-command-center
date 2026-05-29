@@ -279,33 +279,31 @@ export default function Opportunities() {
     if (n) setOppForm(f => ({ ...f,     setEditScenario(null);
   }
 
-  async function handleOppSubmit(e: React.FormEvent) {
+  async function handleOppSubmit(e) {
     e.preventDefault();
-    if (!oppForm.name.trim()) { setOppErr('Company name is required.'); return; }
-    setOppSaving(true); setOppErr('');
-    const isNew = !oppEdit;
-    const payload: Record<string, any> = {
-      // Core fields
-      name:                oppForm.name.trim(),
-      description:         oppForm.followUpNotes?.trim() || oppForm.name.trim(),
-      stage:               oppForm.aiStage ?? 'qualify',
-      value:               oppForm.value ? Number(oppForm.value) : 0,
-      probability:         50,
-      strategicImportance: 'medium',
-      lastInteractionAt:   new Date().toISOString(),
-      nextSteps:           oppForm.nextSteps || null,
-      // AI Labs custom fields (now in schema)
-                                                                              ...(isNew ? {
-        expectedCloseDate: new Date(Date.now() + 90*86400000).toISOString(),
-        clientId: 'c-roku',
-        ownerId:  'r-viral',
-      } : {}),
+    if (!oppForm.name.trim()) { setOppErr("Company name is required."); return; }
+    setOppSaving(true); setOppErr("");
+    var isNew = !oppEdit;
+    var payload = {
+      name: oppForm.name.trim(),
+      description: oppForm.name.trim(),
+      stage: oppForm.aiStage || "qualify",
+      value: oppForm.value ? Number(oppForm.value) : 0,
+      probability: 50,
+      strategicImportance: "medium",
+      lastInteractionAt: new Date().toISOString(),
+      nextSteps: oppForm.nextSteps || null,
     };
+    if (isNew) {
+      payload.expectedCloseDate = new Date(Date.now() + 90*86400000).toISOString();
+      payload.clientId = "c-roku";
+      payload.ownerId = "r-viral";
+    }
     try {
-      if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, ...payload }); }
+      if (oppEdit) { await updateOpp.mutateAsync(Object.assign({ id: oppEdit.id }, payload)); }
       else { await createOpp.mutateAsync(payload); }
       setOppModal(false);
-    } catch (err: any) { setOppErr(err?.message ?? 'Save failed.'); }
+    } catch(err) { setOppErr(err && err.message ? err.message : "Save failed."); }
     finally { setOppSaving(false); }
   }
   async function handleDeleteOpp(id: string) {

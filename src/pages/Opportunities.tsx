@@ -233,7 +233,7 @@ export default function Opportunities() {
   // ── Derived data
   const opps = useMemo(() => (rawOpps as any[]).map(o => ({
     ...o,
-    aiStage: o.aiStage ?? LEGACY_STAGE_MAP[o.stage] ?? 'reply_sent',
+    aiStage:o.aiStage??o.stage?? LEGACY_STAGE_MAP[o.stage] ?? 'reply_sent',
     dealRating: o.dealRating ?? 0,
     interestedScenarios: o.interestedScenarios ?? [],
     trinamixOwner: o.trinamixOwner ?? '',
@@ -272,7 +272,7 @@ export default function Opportunities() {
   function openEditOpp(o: any) {
     setOppEdit(o);
     setOppForm({ name:o.name??'', contactName:o.contactName??'', contactTitle:o.contactTitle??'',
-      contactEmail:o.contactEmail??'', trinamixOwner:o.trinamixOwner??'', aiStage:o.aiStage??'reply_sent',
+      contactEmail:o.contactEmail??'', trinamixOwner:o.trinamixOwner??'', aiStage:o.aiStage??o.stage??'reply_sent',
       dealRating:o.dealRating??0, copyOracle:o.copyOracle??false, emailOwner:o.emailOwner??'',
       value:o.value!=null?String(o.value):'', interestedScenarios:o.interestedScenarios??[],
       followUpNotes:o.followUpNotes??'', nextSteps:o.nextSteps??'',
@@ -294,33 +294,43 @@ export default function Opportunities() {
     setEditScenario(null);
   }
 
-  async function handleOppSubmit(e: React.FormEvent) {
+  async function handleOppSubmit(e) {
     e.preventDefault();
-    if (!oppForm.name.trim()) { setOppErr('Company name is required.'); return; }
-    setOppSaving(true); setOppErr('');
-    const isNew = !oppEdit;
-    // Only send fields that exist in the current Prisma schema
-    // Custom fields (contactName etc.) will work after Render redeploys
-    const payload: Record<string, any> = {
+    if (!oppForm.name.trim()) { setOppErr("Company name is required."); return; }
+    setOppSaving(true); setOppErr("");
+    var isNew = !oppEdit;
+    var payload = {
       name:                oppForm.name.trim(),
-      description:         oppForm.followUpNotes?.trim() || oppForm.name.trim(),
-      stage:               oppForm.aiStage ?? 'qualify',
+      description:         oppForm.followUpNotes && oppForm.followUpNotes.trim() ? oppForm.followUpNotes.trim() : oppForm.name.trim(),
+      stage:               oppForm.aiStage || oppForm.stage || "qualify",
+      aiStage:             oppForm.aiStage || oppForm.stage || "qualify",
       value:               oppForm.value ? Number(oppForm.value) : 0,
       probability:         50,
-      strategicImportance: 'medium',
+      strategicImportance: "medium",
       lastInteractionAt:   new Date().toISOString(),
       nextSteps:           oppForm.nextSteps || null,
-      ...(isNew ? {
-        expectedCloseDate: new Date(Date.now() + 90*86400000).toISOString(),
-        clientId: 'c-roku',
-        ownerId:  'r-viral',
-      } : {}),
+      contactName:         oppForm.contactName || null,
+      contactTitle:        oppForm.contactTitle || null,
+      contactEmail:        oppForm.contactEmail || null,
+      trinamixOwner:       oppForm.trinamixOwner || null,
+      dealRating:          Number(oppForm.dealRating) || 0,
+      copyOracle:          Boolean(oppForm.copyOracle),
+      emailOwner:          oppForm.emailOwner || null,
+      interestedScenarios: oppForm.interestedScenarios || [],
+      followUpNotes:       oppForm.followUpNotes || null,
+      urgentNotes:         oppForm.urgentNotes || null,
+      lastReviewed:        oppForm.lastReviewed ? new Date(oppForm.lastReviewed).toISOString() : null,
     };
+    if (isNew) {
+      payload.expectedCloseDate = new Date(Date.now() + 90*86400000).toISOString();
+      payload.clientId = "c-roku";
+      payload.ownerId  = "r-viral";
+    }
     try {
-      if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, ...payload }); }
+      if (oppEdit) { await updateOpp.mutateAsync(Object.assign({ id: oppEdit.id }, payload)); }
       else { await createOpp.mutateAsync(payload); }
       setOppModal(false);
-    } catch (err: any) { setOppErr(err?.message ?? 'Save failed.'); }
+    } catch(err) { setOppErr(err && err.message ? err.message : "Save failed."); }
     finally { setOppSaving(false); }
   }
   async function handleDeleteOpp(id: string) {

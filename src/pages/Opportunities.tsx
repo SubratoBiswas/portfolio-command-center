@@ -299,7 +299,7 @@ export default function Opportunities() {
     setOppSaving(true); setOppErr('');
     const payload = { ...oppForm, name: oppForm.name.trim(), stage: oppForm.aiStage, value: oppForm.value ? Number(oppForm.value) : 0, probability: 50, lastInteractionAt: new Date().toISOString() };
     try {
-      if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, data: payload }); }
+      if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, ...payload }); }
       else { await createOpp.mutateAsync(payload); }
       setOppModal(false);
     } catch (e: any) { setOppErr(e?.message ?? 'Save failed.'); }

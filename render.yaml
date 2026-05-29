@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: portfolio-command-center
-    env: static
-    buildCommand: npm ci && npx vite build
-    staticPublishPath: ./dist
-    pullRequestPreviewsEnabled: false

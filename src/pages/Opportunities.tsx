@@ -297,16 +297,39 @@ export default function Opportunities() {
   async function handleOppSubmit(e: React.FormEvent) {
     e.preventDefault(); if (!oppForm.name.trim()) { setOppErr('Company name is required.'); return; }
     setOppSaving(true); setOppErr('');
-    const payload = {
-    // ── Valid Prisma Opportunity fields only ──────────────────────────────────
-    name: oppForm.name.trim(),
-    stage: oppForm.aiStage ?? 'reply_sent',          // aiStage → stage in DB
-    value: oppForm.value ? Number(oppForm.value) : 0,
-    probability: 50,
-    lastInteractionAt: new Date().toISOString(),
-    nextSteps: oppForm.nextSteps || undefined,
-    // Store AI Labs custom fields in nextSteps + description as structured notes
-    // until a migration adds these columns to the schema.
+    const isCreate = !oppEdit;
+  const payload = {
+    // ── Core fields (required for create, optional for update) ────────────
+    name:                 oppForm.name.trim(),
+    description:          oppForm.followUpNotes || oppForm.name.trim(),  // fallback
+    stage:                oppForm.aiStage        ?? 'reply_sent',
+    aiStage:              oppForm.aiStage        ?? 'reply_sent',
+    value:                oppForm.value ? Number(oppForm.value) : 0,
+    probability:          50,
+    strategicImportance:  'medium',
+    lastInteractionAt:    new Date().toISOString(),
+    expectedCloseDate:    new Date(Date.now() + 90 * 86400000).toISOString(),
+    nextSteps:            oppForm.nextSteps      || undefined,
+    // ── Required relational fields (create only) ──────────────────────────
+    ...(isCreate && {
+      // Use first available resource as owner; admin can update after creation
+      clientId:   'c-roku',        // default — user should update in list
+      ownerId:    'r-viral',       // default — user should update in list
+    }),
+    // ── AI Labs custom fields ─────────────────────────────────────────────
+    contactName:          oppForm.contactName          || undefined,
+    contactTitle:         oppForm.contactTitle         || undefined,
+    contactEmail:         oppForm.contactEmail         || undefined,
+    trinamixOwner:        oppForm.trinamixOwner        || undefined,
+    dealRating:           Number(oppForm.dealRating)   || 0,
+    copyOracle:           Boolean(oppForm.copyOracle),
+    emailOwner:           oppForm.emailOwner           || undefined,
+    interestedScenarios:  oppForm.interestedScenarios  ?? [],
+    followUpNotes:        oppForm.followUpNotes        || undefined,
+    urgentNotes:          oppForm.urgentNotes          || undefined,
+    lastReviewed:         oppForm.lastReviewed
+                            ? new Date(oppForm.lastReviewed).toISOString()
+                            : undefined,
   };
     try {
       if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, ...payload }); }

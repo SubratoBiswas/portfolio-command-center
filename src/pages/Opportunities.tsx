@@ -297,7 +297,17 @@ export default function Opportunities() {
   async function handleOppSubmit(e: React.FormEvent) {
     e.preventDefault(); if (!oppForm.name.trim()) { setOppErr('Company name is required.'); return; }
     setOppSaving(true); setOppErr('');
-    const payload = { ...oppForm, name: oppForm.name.trim(), stage: oppForm.aiStage, value: oppForm.value ? Number(oppForm.value) : 0, probability: 50, lastInteractionAt: new Date().toISOString() };
+    const payload = {
+    // ── Valid Prisma Opportunity fields only ──────────────────────────────────
+    name: oppForm.name.trim(),
+    stage: oppForm.aiStage ?? 'reply_sent',          // aiStage → stage in DB
+    value: oppForm.value ? Number(oppForm.value) : 0,
+    probability: 50,
+    lastInteractionAt: new Date().toISOString(),
+    nextSteps: oppForm.nextSteps || undefined,
+    // Store AI Labs custom fields in nextSteps + description as structured notes
+    // until a migration adds these columns to the schema.
+  };
     try {
       if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, ...payload }); }
       else { await createOpp.mutateAsync(payload); }

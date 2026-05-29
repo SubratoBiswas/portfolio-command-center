@@ -297,9 +297,10 @@ export default function Opportunities() {
   async function handleOppSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!oppForm.name.trim()) { setOppErr('Company name is required.'); return; }
-    setOppSaving(true);
-    setOppErr('');
+    setOppSaving(true); setOppErr('');
     const isNew = !oppEdit;
+    // Only send fields that exist in the current Prisma schema
+    // Custom fields (contactName etc.) will work after Render redeploys
     const payload: Record<string, any> = {
       name:                oppForm.name.trim(),
       description:         oppForm.followUpNotes?.trim() || oppForm.name.trim(),
@@ -308,35 +309,19 @@ export default function Opportunities() {
       probability:         50,
       strategicImportance: 'medium',
       lastInteractionAt:   new Date().toISOString(),
-      nextSteps:           oppForm.nextSteps || null,      contactName:         oppForm.contactName || null,
-      contactTitle:        oppForm.contactTitle || null,
-      contactEmail:        oppForm.contactEmail || null,
-      trinamixOwner:       oppForm.trinamixOwner || null,
-      dealRating:          Number(oppForm.dealRating) || 0,
-      copyOracle:          Boolean(oppForm.copyOracle),
-      emailOwner:          oppForm.emailOwner || null,
-      interestedScenarios: oppForm.interestedScenarios ?? [],
-      followUpNotes:       oppForm.followUpNotes || null,
-      urgentNotes:         oppForm.urgentNotes || null,
-      lastReviewed:        oppForm.lastReviewed ? new Date(oppForm.lastReviewed).toISOString() : null,
+      nextSteps:           oppForm.nextSteps || null,
       ...(isNew ? {
-        expectedCloseDate: new Date(Date.now() + 90 * 86400000).toISOString(),
+        expectedCloseDate: new Date(Date.now() + 90*86400000).toISOString(),
         clientId: 'c-roku',
-        ownerId: 'r-viral',
+        ownerId:  'r-viral',
       } : {}),
     };
     try {
-      if (oppEdit) {
-        await updateOpp.mutateAsync({ id: oppEdit.id, ...payload });
-      } else {
-        await createOpp.mutateAsync(payload);
-      }
+      if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, ...payload }); }
+      else { await createOpp.mutateAsync(payload); }
       setOppModal(false);
-    } catch (err: any) {
-      setOppErr(err?.message ?? 'Save failed.');
-    } finally {
-      setOppSaving(false);
-    }
+    } catch (err: any) { setOppErr(err?.message ?? 'Save failed.'); }
+    finally { setOppSaving(false); }
   }
   async function handleDeleteOpp(id: string) {
     try { await deleteOpp.mutateAsync(id); setConfirmDelOpp(null); }

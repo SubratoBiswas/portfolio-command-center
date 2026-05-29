@@ -299,20 +299,35 @@ export default function Opportunities() {
     setOppSaving(true); setOppErr('');
     const isCreate = !oppEdit;
   const payload: Record<string, any> = {
-    // ── Fields that exist in the Prisma Opportunity schema ──────────────────
-    name:               oppForm.name.trim(),
-    description:        oppForm.followUpNotes?.trim() || oppForm.name.trim(),
-    stage:              oppForm.aiStage               ?? 'qualify',
-    value:              oppForm.value ? Number(oppForm.value) : 0,
-    probability:        50,
+    // ── Core Prisma fields ──────────────────────────────────────────────────
+    name:                oppForm.name.trim(),
+    description:         oppForm.followUpNotes?.trim() || oppForm.name.trim(),
+    stage:               oppForm.aiStage               ?? 'qualify',
+    aiStage:             oppForm.aiStage               ?? 'qualify',
+    value:               oppForm.value ? Number(oppForm.value) : 0,
+    probability:         50,
     strategicImportance: 'medium',
-    lastInteractionAt:  new Date().toISOString(),
-    nextSteps:          oppForm.nextSteps || null,
-    // expectedCloseDate only for new records
+    lastInteractionAt:   new Date().toISOString(),
+    nextSteps:           oppForm.nextSteps              || null,
+    // ── AI Labs custom fields ───────────────────────────────────────────────
+    contactName:         oppForm.contactName            || null,
+    contactTitle:        oppForm.contactTitle           || null,
+    contactEmail:        oppForm.contactEmail           || null,
+    trinamixOwner:       oppForm.trinamixOwner          || null,
+    dealRating:          Number(oppForm.dealRating)     || 0,
+    copyOracle:          Boolean(oppForm.copyOracle),
+    emailOwner:          oppForm.emailOwner             || null,
+    interestedScenarios: oppForm.interestedScenarios    ?? [],
+    followUpNotes:       oppForm.followUpNotes          || null,
+    urgentNotes:         oppForm.urgentNotes            || null,
+    lastReviewed:        oppForm.lastReviewed
+                           ? new Date(oppForm.lastReviewed).toISOString()
+                           : null,
+    // ── Required for create only ────────────────────────────────────────────
     ...(oppEdit ? {} : {
       expectedCloseDate: new Date(Date.now() + 90 * 86400000).toISOString(),
-      clientId:          'c-roku',   // default — can be changed via DB or future picker
-      ownerId:           'r-viral',  // default — can be changed via DB or future picker
+      clientId:          'c-roku',
+      ownerId:           'r-viral',
     }),
   };
     try {

@@ -137,7 +137,9 @@ const ACTION_SEED = [
 ];
 
 // ─── Blank forms ──────────────────────────────────────────────────────────────
-const EMPTY_OPP = { name:'', const EMPTY_ACT = { company:'', owner:'', scenarios:[] as string[], requirements:[] as string[], action:'', lastDemoed:'' };
+const EMPTY_OPP = { name:'', contactName:'', contactTitle:'', contactEmail:'', trinamixOwner:'', aiStage:'reply_sent', dealRating:2, copyOracle:false, emailOwner:'', value:'', interestedScenarios:[] as string[], followUpNotes:'', nextSteps:'', urgentNotes:'', lastReviewed:'' };
+const EMPTY_CAL = { company:'', date:'', time:'10:00 PST', attendees:'', status:'scheduled', type:'Workshop' };
+const EMPTY_ACT = { company:'', owner:'', scenarios:[] as string[], requirements:[] as string[], action:'', lastDemoed:'' };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function StarRating({ value, onChange, readonly }: { value: number; onChange?: (v: number) => void; readonly?: boolean }) {
@@ -231,7 +233,11 @@ export default function Opportunities() {
   // ── Derived data
   const opps = useMemo(() => (rawOpps as any[]).map(o => ({
     ...o,
-                  })), [rawOpps]);
+    aiStage: o.aiStage ?? LEGACY_STAGE_MAP[o.stage] ?? 'reply_sent',
+    dealRating: o.dealRating ?? 0,
+    interestedScenarios: o.interestedScenarios ?? [],
+    trinamixOwner: o.trinamixOwner ?? '',
+  })), [rawOpps]);
 
   const activeOpps = useMemo(() => opps.filter(o => !['not_interested','not_legit'].includes(o.aiStage)), [opps]);
 
@@ -265,45 +271,56 @@ export default function Opportunities() {
   function openCreateOpp() { setOppEdit(null); setOppForm({ ...EMPTY_OPP }); setOppErr(''); setOppModal(true); }
   function openEditOpp(o: any) {
     setOppEdit(o);
-    setOppForm({ name:o.name??'',             value:o.value!=null?String(o.value):'',                 setOppErr(''); setOppModal(true);
+    setOppForm({ name:o.name??'', contactName:o.contactName??'', contactTitle:o.contactTitle??'',
+      contactEmail:o.contactEmail??'', trinamixOwner:o.trinamixOwner??'', aiStage:o.aiStage??'reply_sent',
+      dealRating:o.dealRating??0, copyOracle:o.copyOracle??false, emailOwner:o.emailOwner??'',
+      value:o.value!=null?String(o.value):'', interestedScenarios:o.interestedScenarios??[],
+      followUpNotes:o.followUpNotes??'', nextSteps:o.nextSteps??'',
+      urgentNotes:o.urgentNotes??'', lastReviewed:o.lastReviewed?o.lastReviewed.split('T')[0]:'' });
+    setOppErr(''); setOppModal(true);
   }
   function setOF(k: string, v: any) { setOppForm(f => ({ ...f, [k]: v })); }
 
   // Scenario CRUD within opp form
   function addOppScenario(name: string) {
     const t = name.trim(); if (!t || oppForm.interestedScenarios.includes(t)) { setNewScenario(''); return; }
-    setOppForm(f => ({ ...f,   }
-  function removeOppScenario(name: string) { setOppForm(f => ({ ...f,   function commitEditScenario() {
+    setOppForm(f => ({ ...f, interestedScenarios: [...f.interestedScenarios, t] })); setNewScenario('');
+  }
+  function removeOppScenario(name: string) { setOppForm(f => ({ ...f, interestedScenarios: f.interestedScenarios.filter(s => s !== name) })); }
+  function commitEditScenario() {
     if (!editScenario) return;
     const n = editScenario.value.trim();
-    if (n) setOppForm(f => ({ ...f,     setEditScenario(null);
+    if (n) setOppForm(f => ({ ...f, interestedScenarios: f.interestedScenarios.map(s => s === editScenario.original ? n : s) }));
+    setEditScenario(null);
   }
 
-  async function handleOppSubmit(e) {
+  async function handleOppSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!oppForm.name.trim()) { setOppErr("Company name is required."); return; }
-    setOppSaving(true); setOppErr("");
-    var isNew = !oppEdit;
-    var payload = {
-      name: oppForm.name.trim(),
-      description: oppForm.name.trim(),
-      stage: oppForm.aiStage || "qualify",
-      value: oppForm.value ? Number(oppForm.value) : 0,
-      probability: 50,
-      strategicImportance: "medium",
-      lastInteractionAt: new Date().toISOString(),
-      nextSteps: oppForm.nextSteps || null,
+    if (!oppForm.name.trim()) { setOppErr('Company name is required.'); return; }
+    setOppSaving(true); setOppErr('');
+    const isNew = !oppEdit;
+    // Only send fields that exist in the current Prisma schema
+    // Custom fields (contactName etc.) will work after Render redeploys
+    const payload: Record<string, any> = {
+      name:                oppForm.name.trim(),
+      description:         oppForm.followUpNotes?.trim() || oppForm.name.trim(),
+      stage:               oppForm.aiStage ?? 'qualify',
+      value:               oppForm.value ? Number(oppForm.value) : 0,
+      probability:         50,
+      strategicImportance: 'medium',
+      lastInteractionAt:   new Date().toISOString(),
+      nextSteps:           oppForm.nextSteps || null,
+      ...(isNew ? {
+        expectedCloseDate: new Date(Date.now() + 90*86400000).toISOString(),
+        clientId: 'c-roku',
+        ownerId:  'r-viral',
+      } : {}),
     };
-    if (isNew) {
-      payload.expectedCloseDate = new Date(Date.now() + 90*86400000).toISOString();
-      payload.clientId = "c-roku";
-      payload.ownerId = "r-viral";
-    }
     try {
-      if (oppEdit) { await updateOpp.mutateAsync(Object.assign({ id: oppEdit.id }, payload)); }
+      if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, ...payload }); }
       else { await createOpp.mutateAsync(payload); }
       setOppModal(false);
-    } catch(err) { setOppErr(err && err.message ? err.message : "Save failed."); }
+    } catch (err: any) { setOppErr(err?.message ?? 'Save failed.'); }
     finally { setOppSaving(false); }
   }
   async function handleDeleteOpp(id: string) {
@@ -1066,4 +1083,3 @@ export default function Opportunities() {
     </div>
   );
 }
-

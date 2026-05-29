@@ -299,42 +299,34 @@ export default function Opportunities() {
     if (!oppForm.name.trim()) { setOppErr('Company name is required.'); return; }
     setOppSaving(true);
     setOppErr('');
-
     const isNew = !oppEdit;
-
     const payload: Record<string, any> = {
-      // ── Core Prisma schema fields ────────────────────────────────────────
       name:                oppForm.name.trim(),
       description:         oppForm.followUpNotes?.trim() || oppForm.name.trim(),
-      stage:               oppForm.aiStage               ?? 'qualify',
+      stage:               oppForm.aiStage ?? 'qualify',
+      aiStage:             oppForm.aiStage ?? 'qualify',
       value:               oppForm.value ? Number(oppForm.value) : 0,
       probability:         50,
       strategicImportance: 'medium',
       lastInteractionAt:   new Date().toISOString(),
-      nextSteps:           oppForm.nextSteps              || null,
-      // ── AI Labs custom fields (added to schema) ──────────────────────────
-      aiStage:             oppForm.aiStage               ?? 'qualify',
-      contactName:         oppForm.contactName            || null,
-      contactTitle:        oppForm.contactTitle           || null,
-      contactEmail:        oppForm.contactEmail           || null,
-      trinamixOwner:       oppForm.trinamixOwner          || null,
-      dealRating:          Number(oppForm.dealRating)     || 0,
+      nextSteps:           oppForm.nextSteps || null,
+      contactName:         oppForm.contactName || null,
+      contactTitle:        oppForm.contactTitle || null,
+      contactEmail:        oppForm.contactEmail || null,
+      trinamixOwner:       oppForm.trinamixOwner || null,
+      dealRating:          Number(oppForm.dealRating) || 0,
       copyOracle:          Boolean(oppForm.copyOracle),
-      emailOwner:          oppForm.emailOwner             || null,
-      interestedScenarios: oppForm.interestedScenarios    ?? [],
-      followUpNotes:       oppForm.followUpNotes          || null,
-      urgentNotes:         oppForm.urgentNotes            || null,
-      lastReviewed:        oppForm.lastReviewed
-                             ? new Date(oppForm.lastReviewed).toISOString()
-                             : null,
-      // ── Required relational fields for new records ───────────────────────
+      emailOwner:          oppForm.emailOwner || null,
+      interestedScenarios: oppForm.interestedScenarios ?? [],
+      followUpNotes:       oppForm.followUpNotes || null,
+      urgentNotes:         oppForm.urgentNotes || null,
+      lastReviewed:        oppForm.lastReviewed ? new Date(oppForm.lastReviewed).toISOString() : null,
       ...(isNew ? {
         expectedCloseDate: new Date(Date.now() + 90 * 86400000).toISOString(),
-        clientId:          'c-roku',
-        ownerId:           'r-viral',
+        clientId: 'c-roku',
+        ownerId: 'r-viral',
       } : {}),
     };
-
     try {
       if (oppEdit) {
         await updateOpp.mutateAsync({ id: oppEdit.id, ...payload });
@@ -343,7 +335,7 @@ export default function Opportunities() {
       }
       setOppModal(false);
     } catch (err: any) {
-      setOppErr(err?.message ?? 'Save failed. Please try again.');
+      setOppErr(err?.message ?? 'Save failed.');
     } finally {
       setOppSaving(false);
     }

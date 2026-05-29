@@ -33,7 +33,11 @@ export function DialogHeader({ title, description, onClose }: { title: string; d
         <h3 className="text-base font-semibold text-ink">{title}</h3>
         {description && <p className="text-xs text-ink-muted mt-0.5">{description}</p>}
       </div>
-      <button onClick={onClose} className="p-1 rounded-sm hover:bg-line-subtle text-ink-muted">
+      <button
+        onClick={onClose}
+        className="p-1.5 rounded-sm hover:bg-line-subtle text-ink-muted hover:text-ink transition-colors shrink-0"
+        aria-label="Close"
+      >
         <X size={16} />
       </button>
     </div>
@@ -41,14 +45,13 @@ export function DialogHeader({ title, description, onClose }: { title: string; d
 }
 
 export function DialogBody({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('p-5', className)}>{children}</div>;
+  return <div className={cn('p-5 overflow-y-auto max-h-[70vh]', className)}>{children}</div>;
 }
 
 export function DialogFooter({ children }: { children: React.ReactNode }) {
-  return <div className="px-5 py-3 border-t border-line flex items-center justify-end gap-2">{children}</div>;
+  return <div className="px-5 py-3 border-t border-line flex items-center justify-end gap-2 shrink-0">{children}</div>;
 }
 
-// ---- Form helpers used in create-modals ----
 export function Field({
   label, required, children, hint,
 }: { label: string; required?: boolean; children: React.ReactNode; hint?: string }) {

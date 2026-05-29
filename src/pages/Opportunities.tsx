@@ -426,6 +426,15 @@ export default function Opportunities() {
                               <button onClick={() => setExpandedCard(expanded ? null : o.id)} className="p-0.5 rounded text-ink-muted hover:text-ink">
                                 {expanded ? <ChevronUp size={11}/> : <ChevronDown size={11}/>}
                               </button>
+              {expandedCard === o.id && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setExpandedCard(null); }}
+                  className="p-1 rounded hover:bg-line-subtle text-ink-muted hover:text-ink ml-1"
+                  title="Close card"
+                >
+                  <X size={13} />
+                </button>
+              )}
                             </div>
                           </div>
                           {o.contactName && <div className="text-2xs text-ink-muted">{o.contactName}{o.contactTitle ? ` · ${o.contactTitle}` : ''}</div>}

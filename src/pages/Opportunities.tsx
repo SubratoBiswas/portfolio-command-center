@@ -233,7 +233,7 @@ export default function Opportunities() {
   // ── Derived data
   const opps = useMemo(() => (rawOpps as any[]).map(o => ({
     ...o,
-    aiStage:o.aiStage??o.stage?? LEGACY_STAGE_MAP[o.stage] ?? 'reply_sent',
+    aiStage:o.aiStage??o.stage??o.stage?? LEGACY_STAGE_MAP[o.stage] ?? 'reply_sent',
     dealRating: o.dealRating ?? 0,
     interestedScenarios: o.interestedScenarios ?? [],
     trinamixOwner: o.trinamixOwner ?? '',
@@ -272,7 +272,7 @@ export default function Opportunities() {
   function openEditOpp(o: any) {
     setOppEdit(o);
     setOppForm({ name:o.name??'', contactName:o.contactName??'', contactTitle:o.contactTitle??'',
-      contactEmail:o.contactEmail??'', trinamixOwner:o.trinamixOwner??'', aiStage:o.aiStage??o.stage??'reply_sent',
+      contactEmail:o.contactEmail??'', trinamixOwner:o.trinamixOwner??'', aiStage:o.aiStage??o.stage??o.stage??'reply_sent',
       dealRating:o.dealRating??0, copyOracle:o.copyOracle??false, emailOwner:o.emailOwner??'',
       value:o.value!=null?String(o.value):'', interestedScenarios:o.interestedScenarios??[],
       followUpNotes:o.followUpNotes??'', nextSteps:o.nextSteps??'',

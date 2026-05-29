@@ -23,7 +23,7 @@ export const clearUser = () => localStorage.removeItem(USER_KEY);
 
 interface ApiEnvelope<T> { ok: boolean; data: T; meta?: { count?: number; took_ms?: number }; status?: number; message?: string; }
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const url = `${API_URL}${path}`;
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
@@ -245,6 +245,16 @@ export const api = {
     delete: (id: string) => USE_API
       ? call<any>('DELETE', `/locations/${id}`)
       : Promise.resolve((() => { const i = (seed.locations as any[]).findIndex(l => l.id === id); if (i !== -1) (seed.locations as any[]).splice(i, 1); return { id, deleted: true }; })()),
+  },
+
+  users: {
+    list: () => call<any[]>('GET', '/users'),
+    create: (data: { email: string; password: string; name: string; role?: string }) =>
+      call<any>('POST', '/users', data),
+    update: (id: string, data: { role?: string; active?: boolean; name?: string }) =>
+      call<any>('PATCH', `/users/${id}`, data),
+    remove: (id: string) =>
+      call<any>('DELETE', `/users/${id}`),
   },
   workstreams: {
     list: () => Promise.resolve(seed.workstreams),

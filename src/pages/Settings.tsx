@@ -39,30 +39,32 @@ const ROLE_TONES: Record<string, string> = {
 function useUsers() {
   return useQuery<AppUser[]>({
     queryKey: ['users'],
-    queryFn: () => api.get('/users').then(r => r.data),
+    queryFn: () => api.users.list(),
+    retry: false,
   });
 }
 function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { name: string; email: string; password: string; role: string }) =>
-      api.post('/users', data).then(r => r.data),
+      api.users.create(data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); },
-    onError: (e: any) => { alert(e?.response?.data?.message ?? 'Could not create user.'); },
+    onError: (e: any) => { alert(e?.message ?? 'Could not create user.'); },
   });
 }
 function useUpdateUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string; role?: string; active?: boolean }) =>
-      api.patch(`/users/${id}`, data).then(r => r.data),
+      api.users.update(id, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); },
+    onError: (e: any) => { alert(e?.message ?? 'Could not update user.'); },
   });
 }
 function useDeactivateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.delete(`/users/${id}`).then(r => r.data),
+    mutationFn: (id: string) => api.users.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); },
   });
 }
@@ -85,10 +87,12 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
   async function handleSubmit() {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
-    await createUser.mutateAsync(form);
-    setForm({ name: '', email: '', password: '', role: 'viewer' });
-    setErrors({});
-    onClose();
+    try {
+      await createUser.mutateAsync(form);
+      setForm({ name: '', email: '', password: '', role: 'viewer' });
+      setErrors({});
+      onClose();
+    } catch (_) { /* error handled in onError */ }
   }
 
   function handleClose() {
@@ -144,7 +148,7 @@ function CreateUserModal({ open, onClose }: { open: boolean; onClose: () => void
 
 function UsersTab() {
   const [showCreate, setShowCreate] = useState(false);
-  const { data: users = [], isLoading, refetch } = useUsers();
+  const { data: users = [], isLoading, error, refetch } = useUsers();
   const updateUser = useUpdateUser();
   const deactivateUser = useDeactivateUser();
 
@@ -163,6 +167,10 @@ function UsersTab() {
         </CardHeader>
         {isLoading ? (
           <div className="px-4 py-8 text-center text-sm text-ink-muted">Loading users…</div>
+        ) : error ? (
+          <div className="px-4 py-8 text-center text-sm text-crit">
+            Could not load users. Make sure you are logged in as Admin.
+          </div>
         ) : users.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-ink-muted">No users yet. Click Add user to get started.</div>
         ) : (
@@ -190,8 +198,11 @@ function UsersTab() {
                   </td>
                   <td className="px-4 py-3 text-ink-muted">{user.email}</td>
                   <td className="px-4 py-3">
-                    <select className="text-xs border border-line rounded-xs px-2 py-1 bg-paper-raised focus:outline-none focus:border-brand"
-                      value={user.role} onChange={e => updateUser.mutate({ id: user.id, role: e.target.value })}>
+                    <select
+                      className="text-xs border border-line rounded-xs px-2 py-1 bg-paper-raised focus:outline-none focus:border-brand"
+                      value={user.role}
+                      onChange={e => updateUser.mutate({ id: user.id, role: e.target.value })}
+                    >
                       {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                     </select>
                   </td>
@@ -201,7 +212,9 @@ function UsersTab() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-xs text-ink-muted">
-                    {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never'}
+                    {user.lastLoginAt
+                      ? new Date(user.lastLoginAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      : 'Never'}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {user.active ? (
@@ -292,7 +305,7 @@ export default function Settings() {
                       <td className="px-4 py-2.5"><Badge size="xs" tone="bg-paper-sunken text-ink-soft">{f.object}</Badge></td>
                       <td className="px-4 py-2.5 font-medium text-ink">{f.name}</td>
                       <td className="px-4 py-2.5 font-mono text-2xs text-ink-muted">{f.type}</td>
-                      <td className="px-4 py-2.5">{f.options ? <div className="flex flex-wrap gap-1">{f.options.map(o => <Badge key={o} size="xs" tone="bg-line-subtle text-ink-muted">{o}</Badge>)}</div> : <span className="text-ink-subtle text-xs">—</span>}</td>
+                      <td className="px-4 py-2.5">{(f as any).options ? <div className="flex flex-wrap gap-1">{(f as any).options.map((o: string) => <Badge key={o} size="xs" tone="bg-line-subtle text-ink-muted">{o}</Badge>)}</div> : <span className="text-ink-subtle text-xs">—</span>}</td>
                       <td className="px-4 py-2.5"><span className={f.required ? 'text-crit text-xs font-semibold' : 'text-ink-subtle text-xs'}>{f.required ? 'required' : 'optional'}</span></td>
                     </tr>
                   ))}
@@ -330,13 +343,13 @@ export default function Settings() {
             <Card>
               <CardHeader><CardTitle>Data & retention</CardTitle></CardHeader>
               <CardBody className="space-y-3">
-                {[
+                {([
                   { icon: <Database size={14} />, label: 'Primary store', value: 'PostgreSQL 16 (Prisma)' },
                   { icon: <Zap size={14} />, label: 'Cache', value: 'Redis 7' },
                   { icon: <Key size={14} />, label: 'Auth', value: 'JWT + RBAC' },
                   { icon: <SettingsIcon size={14} />, label: 'Transcript retention', value: '365 days' },
                   { icon: <SettingsIcon size={14} />, label: 'Audit log retention', value: '7 years (compliance)' },
-                ].map(s => (
+                ] as { icon: React.ReactNode; label: string; value: string }[]).map(s => (
                   <div key={s.label} className="flex items-center gap-3 py-2 border-b border-line last:border-0">
                     <div className="h-8 w-8 rounded-sm bg-paper-sunken border border-line flex items-center justify-center text-ink-muted">{s.icon}</div>
                     <div className="flex-1"><div className="text-xs text-ink-muted uppercase tracking-wider">{s.label}</div><div className="text-sm text-ink">{s.value}</div></div>

@@ -137,9 +137,7 @@ const ACTION_SEED = [
 ];
 
 // ─── Blank forms ──────────────────────────────────────────────────────────────
-const EMPTY_OPP = { name:'', contactName:'', contactTitle:'', contactEmail:'', trinamixOwner:'', aiStage:'reply_sent', dealRating:2, copyOracle:false, emailOwner:'', value:'', interestedScenarios:[] as string[], followUpNotes:'', nextSteps:'', urgentNotes:'', lastReviewed:'' };
-const EMPTY_CAL = { company:'', date:'', time:'10:00 PST', attendees:'', status:'scheduled', type:'Workshop' };
-const EMPTY_ACT = { company:'', owner:'', scenarios:[] as string[], requirements:[] as string[], action:'', lastDemoed:'' };
+const EMPTY_OPP = { name:'', const EMPTY_ACT = { company:'', owner:'', scenarios:[] as string[], requirements:[] as string[], action:'', lastDemoed:'' };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function StarRating({ value, onChange, readonly }: { value: number; onChange?: (v: number) => void; readonly?: boolean }) {
@@ -233,11 +231,7 @@ export default function Opportunities() {
   // ── Derived data
   const opps = useMemo(() => (rawOpps as any[]).map(o => ({
     ...o,
-    aiStage: o.aiStage ?? LEGACY_STAGE_MAP[o.stage] ?? 'reply_sent',
-    dealRating: o.dealRating ?? 0,
-    interestedScenarios: o.interestedScenarios ?? [],
-    trinamixOwner: o.trinamixOwner ?? '',
-  })), [rawOpps]);
+                  })), [rawOpps]);
 
   const activeOpps = useMemo(() => opps.filter(o => !['not_interested','not_legit'].includes(o.aiStage)), [opps]);
 
@@ -271,27 +265,18 @@ export default function Opportunities() {
   function openCreateOpp() { setOppEdit(null); setOppForm({ ...EMPTY_OPP }); setOppErr(''); setOppModal(true); }
   function openEditOpp(o: any) {
     setOppEdit(o);
-    setOppForm({ name:o.name??'', contactName:o.contactName??'', contactTitle:o.contactTitle??'',
-      contactEmail:o.contactEmail??'', trinamixOwner:o.trinamixOwner??'', aiStage:o.aiStage??'reply_sent',
-      dealRating:o.dealRating??0, copyOracle:o.copyOracle??false, emailOwner:o.emailOwner??'',
-      value:o.value!=null?String(o.value):'', interestedScenarios:o.interestedScenarios??[],
-      followUpNotes:o.followUpNotes??'', nextSteps:o.nextSteps??'',
-      urgentNotes:o.urgentNotes??'', lastReviewed:o.lastReviewed?o.lastReviewed.split('T')[0]:'' });
-    setOppErr(''); setOppModal(true);
+    setOppForm({ name:o.name??'',             value:o.value!=null?String(o.value):'',                 setOppErr(''); setOppModal(true);
   }
   function setOF(k: string, v: any) { setOppForm(f => ({ ...f, [k]: v })); }
 
   // Scenario CRUD within opp form
   function addOppScenario(name: string) {
     const t = name.trim(); if (!t || oppForm.interestedScenarios.includes(t)) { setNewScenario(''); return; }
-    setOppForm(f => ({ ...f, interestedScenarios: [...f.interestedScenarios, t] })); setNewScenario('');
-  }
-  function removeOppScenario(name: string) { setOppForm(f => ({ ...f, interestedScenarios: f.interestedScenarios.filter(s => s !== name) })); }
-  function commitEditScenario() {
+    setOppForm(f => ({ ...f,   }
+  function removeOppScenario(name: string) { setOppForm(f => ({ ...f,   function commitEditScenario() {
     if (!editScenario) return;
     const n = editScenario.value.trim();
-    if (n) setOppForm(f => ({ ...f, interestedScenarios: f.interestedScenarios.map(s => s === editScenario.original ? n : s) }));
-    setEditScenario(null);
+    if (n) setOppForm(f => ({ ...f,     setEditScenario(null);
   }
 
   async function handleOppSubmit(e: React.FormEvent) {
@@ -310,19 +295,7 @@ export default function Opportunities() {
       lastInteractionAt:   new Date().toISOString(),
       nextSteps:           oppForm.nextSteps || null,
       // AI Labs custom fields (now in schema)
-      aiStage:             oppForm.aiStage ?? 'qualify',
-      contactName:         oppForm.contactName || null,
-      contactTitle:        oppForm.contactTitle || null,
-      contactEmail:        oppForm.contactEmail || null,
-      trinamixOwner:       oppForm.trinamixOwner || null,
-      dealRating:          Number(oppForm.dealRating) || 0,
-      copyOracle:          Boolean(oppForm.copyOracle),
-      emailOwner:          oppForm.emailOwner || null,
-      interestedScenarios: oppForm.interestedScenarios ?? [],
-      followUpNotes:       oppForm.followUpNotes || null,
-      urgentNotes:         oppForm.urgentNotes || null,
-      lastReviewed:        oppForm.lastReviewed ? new Date(oppForm.lastReviewed).toISOString() : null,
-      ...(isNew ? {
+                                                                              ...(isNew ? {
         expectedCloseDate: new Date(Date.now() + 90*86400000).toISOString(),
         clientId: 'c-roku',
         ownerId:  'r-viral',
@@ -1095,3 +1068,4 @@ export default function Opportunities() {
     </div>
   );
 }
+

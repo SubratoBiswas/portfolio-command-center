@@ -301,21 +301,7 @@ export default function Opportunities() {
     const isNew = !oppEdit;
     // Only send fields that exist in the current Prisma schema
     // Custom fields (contactName etc.) will work after Render redeploys
-    const payload: Record<string, any> = {
-      name:                oppForm.name.trim(),
-      description:         oppForm.followUpNotes?.trim() || oppForm.name.trim(),
-      stage:               oppForm.aiStage ?? 'qualify',
-      value:               oppForm.value ? Number(oppForm.value) : 0,
-      probability:         50,
-      strategicImportance: 'medium',
-      lastInteractionAt:   new Date().toISOString(),
-      nextSteps:           oppForm.nextSteps || null,
-      ...(isNew ? {
-        expectedCloseDate: new Date(Date.now() + 90*86400000).toISOString(),
-        clientId: 'c-roku',
-        ownerId:  'r-viral',
-      } : {}),
-    };
+    const payload: Record<string, any> = { name: oppForm.name.trim(), description: oppForm.followUpNotes || oppForm.name.trim(), stage: oppForm.aiStage ?? 'qualify', value: oppForm.value ? Number(oppForm.value) : 0, probability: 50, strategicImportance: 'medium', lastInteractionAt: new Date().toISOString(), nextSteps: oppForm.nextSteps || null, ...(oppEdit ? {} : { expectedCloseDate: new Date(Date.now() + 90*86400000).toISOString(), clientId: 'c-roku', ownerId: 'r-viral' }) };
     try {
       if (oppEdit) { await updateOpp.mutateAsync({ id: oppEdit.id, ...payload }); }
       else { await createOpp.mutateAsync(payload); }

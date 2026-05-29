@@ -23,8 +23,21 @@ model Location {
   type        String     // office | remote | client_site | offshore
   timezone    String?
   resources   Resource[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  // ── AI Experience Labs custom fields ──────────────────────────────────────
+  contactName           String?
+  contactTitle          String?
+  contactEmail          String?
+  trinamixOwner         String?
+  aiStage               String?   // AI-specific pipeline stage
+  dealRating            Int?      @default(0)   // 0..5
+  copyOracle            Boolean?  @default(false)
+  emailOwner            String?
+  interestedScenarios   String[]
+  followUpNotes         String?
+  urgentNotes           String?
+  lastReviewed          DateTime?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
 }
 
 model Resource {

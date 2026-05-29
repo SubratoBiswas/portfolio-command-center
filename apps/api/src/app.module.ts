@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { BullModule } from '@nestjs/bull';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
+import { UsersModule } from './users/users.module';
 import { ResourcesModule } from './resources/resources.module';
 import { ClientsModule } from './clients/clients.module';
 import { ProductsModule } from './products/products.module';
@@ -24,7 +25,6 @@ import { ReportsModule } from './reports/reports.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { LocationsModule } from './locations/locations.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
-import { APP_INTERCEPTOR } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -40,6 +40,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
     }),
     PrismaModule,
     AuthModule,
+    UsersModule,
     ResourcesModule,
     ClientsModule,
     ProductsModule,
@@ -59,11 +60,8 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
     LocationsModule,
   ],
   providers: [
-    // Apply JwtAuthGuard globally — routes opt-out with @Public()
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    // Apply RolesGuard globally — routes opt-in with @Roles(...)
     { provide: APP_GUARD, useClass: RolesGuard },
-    // Audit interceptor — logs all mutating requests
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })

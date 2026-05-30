@@ -303,7 +303,6 @@ export default function Opportunities() {
       name:                oppForm.name.trim(),
       description:         oppForm.followUpNotes && oppForm.followUpNotes.trim() ? oppForm.followUpNotes.trim() : oppForm.name.trim(),
       stage:               oppForm.aiStage || oppForm.stage || "qualify",
-      aiStage:             oppForm.aiStage || oppForm.stage || "qualify",
       value:               oppForm.value ? Number(oppForm.value) : 0,
       probability:         50,
       strategicImportance: "medium",

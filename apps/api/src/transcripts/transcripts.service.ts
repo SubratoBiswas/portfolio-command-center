@@ -75,7 +75,7 @@ export class TranscriptsService extends BaseCrudService {
     } catch (err) {
       await this.prisma.extractionJob.update({
         where: { id: job.id },
-        data: { status: 'failed', completedAt: new Date(), errorMessage: err?.message ?? String(err) },
+        data: { status: 'failed', completedAt: new Date(), errorMessage: (err as any)?.message ?? String(err) },
       });
       throw err;
     }

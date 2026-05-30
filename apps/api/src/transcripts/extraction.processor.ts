@@ -56,10 +56,10 @@ export class ExtractionProcessor {
       this.logger.log(`Extraction job ${job.id} succeeded for transcript ${transcriptId}`);
       return result;
     } catch (err) {
-      this.logger.error(`Extraction job ${job.id} failed: ${err?.message}`);
+      this.logger.error(`Extraction job ${job.id} failed: ${(err as any)?.message}`);
       await this.prisma.extractionJob.update({
         where: { transcriptId },
-        data: { status: 'failed', completedAt: new Date(), errorMessage: err?.message ?? String(err) },
+        data: { status: 'failed', completedAt: new Date(), errorMessage: (err as any)?.message ?? String(err) },
       });
       await this.prisma.transcript.update({ where: { id: transcriptId }, data: { status: 'uploaded' } });
       throw err;

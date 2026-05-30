@@ -1,6 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { TranscriptsService } from './transcripts.service';
-import type { ExtractionResult } from './extraction.providers';
 
 @Controller('transcripts')
 export class TranscriptsController {
@@ -32,40 +31,22 @@ export class TranscriptsController {
     return this.svc.remove(id);
   }
 
-  /**
-   * Enqueue an async extraction job. Returns immediately with jobId.
-   * Poll /:id/job-status to check progress and retrieve results.
-   */
   @Post(':id/extract')
-  extract(@Param('id') id: string, @Body() body: { provider?: string; sync?: boolean }) {
+  extract(@Param('id') id: string, @Body() body: any) {
+    const provider: string = body?.provider ?? 'mock';
     if (body?.sync) {
-      // Synchronous path — useful for tests or small transcripts
-      return this.svc.extractSync(id, body.provider);
+      return this.svc.extractSync(id, provider);
     }
-    return this.svc.enqueueExtraction(id, body?.provider);
+    return this.svc.enqueueExtraction(id, provider);
   }
 
-  /**
-   * Poll extraction job status and retrieve the result when complete.
-   */
   @Get(':id/job-status')
   jobStatus(@Param('id') id: string) {
     return this.svc.getExtractionStatus(id);
   }
 
-  /**
-   * Commit reviewed extraction into canonical tables.
-   */
   @Post(':id/commit')
-  commit(
-    @Param('id') id: string,
-    @Body()
-    body: Partial<ExtractionResult> & {
-      defaultOwnerId: string;
-      defaultProjectId?: string;
-      defaultClientId?: string;
-    },
-  ) {
+  commit(@Param('id') id: string, @Body() body: any) {
     return this.svc.commit(id, body);
   }
 }

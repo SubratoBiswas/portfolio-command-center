@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -12,14 +12,13 @@ async function bootstrap() {
   });
 
   app.use(helmet({ contentSecurityPolicy: false }));
-
   app.enableCors({
-    origin: ['https://portfolio-command-center-one.vercel.app'],
+    origin: process.env.FRONTEND_URL
+      ? process.env.FRONTEND_URL.split(',')
+      : ['http://localhost:5173'],
     credentials: true,
   });
-
   app.setGlobalPrefix('api/v1');
-
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -28,7 +27,6 @@ async function bootstrap() {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
-
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
 
@@ -38,7 +36,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error('Fatal bootstrap error', err);
   process.exit(1);
 });

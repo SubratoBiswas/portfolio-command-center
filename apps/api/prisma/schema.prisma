@@ -1,493 +1,457 @@
-// Trinamix Portfolio Command Center — Prisma schema
-// Hybrid canonical-plus-dynamic model. Every first-class object gets its own table.
-// Cross-cutting metadata (custom fields, attachments, audit) lives in side tables
-// keyed by (objectType, objectId) so they extend ANY object without schema changes.
+// Trinamix Portfolio Command Center — Prisma schema (MongoDB)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
-// =============================================================================
-// People & places
-// =============================================================================
-
 model Location {
-  id          String     @id @default(cuid())
-  name        String
-  region      String
-  type        String     // office | remote | client_site | offshore
-  timezone    String?
-  resources   Resource[]
-  // ── AI Experience Labs custom fields ──────────────────────────────────────
-  contactName           String?
-  contactTitle          String?
-  contactEmail          String?
-  trinamixOwner         String?
-  aiStage               String?   // AI-specific pipeline stage
-  dealRating            Int?      @default(0)   // 0..5
-  copyOracle            Boolean?  @default(false)
-  emailOwner            String?
-  interestedScenarios   String[]
-  followUpNotes         String?
-  urgentNotes           String?
-  lastReviewed          DateTime?
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
+  id                  String     @id @default(cuid()) @map("_id")
+  name                String
+  region              String
+  type                String
+  timezone            String?
+  resources           Resource[]
+  contactName         String?
+  contactTitle        String?
+  contactEmail        String?
+  trinamixOwner       String?
+  aiStage             String?
+  dealRating          Int?       @default(0)
+  copyOracle          Boolean?   @default(false)
+  emailOwner          String?
+  interestedScenarios String[]
+  followUpNotes       String?
+  urgentNotes         String?
+  lastReviewed        DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 }
 
 model Resource {
-  id                    String                @id @default(cuid())
-  name                  String
-  initials              String
-  email                 String                @unique
-  role                  String
-  level                 String                // junior | mid | senior | principal | director
-  active                Boolean               @default(true)
-  weeklyCapacityHours   Int                   @default(40)
-  timeOffHours          Int                   @default(0)
-  skills                String[]
-  costRate              Decimal?              @db.Decimal(10, 2)
-  startDate             DateTime?
-  endDate               DateTime?
-  managerId             String?
-  manager               Resource?             @relation("ResourceManager", fields: [managerId], references: [id])
-  reports               Resource[]            @relation("ResourceManager")
-  locationId            String
-  location              Location              @relation(fields: [locationId], references: [id])
-  allocations           ResourceAllocation[]
-  ownedProducts         Product[]             @relation("ProductOwner")
-  ownedProjects         Project[]             @relation("ProjectOwner")
-  ownedOpportunities    Opportunity[]         @relation("OpportunityOwner")
-  ownedRisks            Risk[]                @relation("RiskOwner")
-  assignedTasks         Task[]                @relation("TaskAssignee")
-  decisions             Decision[]            @relation("DecisionMaker")
-  customFieldValues     CustomFieldValue[]    @relation("ResourceCustomValue")
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
+  id                  String               @id @default(cuid()) @map("_id")
+  name                String
+  initials            String
+  email               String               @unique
+  role                String
+  level               String
+  active              Boolean              @default(true)
+  weeklyCapacityHours Int                  @default(40)
+  timeOffHours        Int                  @default(0)
+  skills              String[]
+  costRate            Float?
+  startDate           DateTime?
+  endDate             DateTime?
+  managerId           String?
+  manager             Resource?            @relation("ResourceManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reports             Resource[]           @relation("ResourceManager")
+  locationId          String
+  location            Location             @relation(fields: [locationId], references: [id])
+  allocations         ResourceAllocation[]
+  ownedProducts       Product[]            @relation("ProductOwner")
+  ownedProjects       Project[]            @relation("ProjectOwner")
+  ownedOpportunities  Opportunity[]        @relation("OpportunityOwner")
+  ownedRisks          Risk[]               @relation("RiskOwner")
+  assignedTasks       Task[]               @relation("TaskAssignee")
+  decisions           Decision[]           @relation("DecisionMaker")
+  customFieldValues   CustomFieldValue[]   @relation("ResourceCustomValue")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
-// =============================================================================
-// Commercial: clients, products, opportunities
-// =============================================================================
-
 model Client {
-  id            String         @id @default(cuid())
+  id            String        @id @default(cuid()) @map("_id")
   name          String
   industry      String
   region        String
   logoColor     String?
-  status        String         @default("active") // active | prospect | churned
+  status        String        @default("active")
   contractType  String?
-  msrp          Decimal?       @db.Decimal(14, 2)
+  msrp          Float?
   notes         String?
   opportunities Opportunity[]
   projects      Project[]
   meetings      Meeting[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }
 
 model Product {
-  id                  String           @id @default(cuid())
-  name                String
-  shortName           String
-  strategicBucket     String           // GenAI | Data | Optimization | Automation
-  vision              String
-  problem             String
-  targetUsers         String
-  pricingModel        String?
-  architectureStatus  String           // draft | reviewed | approved | implemented
-  maturity            String           // concept | mvp | beta | ga | mature
-  aiReadiness         Int              @default(0) // 0..100
-  deliveryReadiness   Int              @default(0)
-  ownerId             String
-  owner               Resource         @relation("ProductOwner", fields: [ownerId], references: [id])
-  capabilities        CapabilityOnProduct[]
-  opportunities       Opportunity[]
-  projects            Project[]
-  roadmapItems        RoadmapItem[]
-  risks               Risk[]
-  tags                String[]
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  id                 String                @id @default(cuid()) @map("_id")
+  name               String
+  shortName          String
+  strategicBucket    String
+  vision             String
+  problem            String
+  targetUsers        String
+  pricingModel       String?
+  architectureStatus String
+  maturity           String
+  aiReadiness        Int                   @default(0)
+  deliveryReadiness  Int                   @default(0)
+  ownerId            String
+  owner              Resource              @relation("ProductOwner", fields: [ownerId], references: [id])
+  capabilities       CapabilityOnProduct[]
+  opportunities      Opportunity[]
+  projects           Project[]
+  roadmapItems       RoadmapItem[]
+  risks              Risk[]
+  tags               String[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
 }
 
 model Opportunity {
-  id                      String      @id @default(cuid())
-  name                    String
-  description             String
-  clientId                String
-  client                  Client      @relation(fields: [clientId], references: [id])
-  productId               String?
-  product                 Product?    @relation(fields: [productId], references: [id])
-  ownerId                 String
-  owner                   Resource    @relation("OpportunityOwner", fields: [ownerId], references: [id])
-  value                   Decimal     @db.Decimal(14, 2)
-  probability             Int         // 0..100
-  stage                   String      // qualify | discover | propose | negotiate | closed_won | closed_lost
-  source                  String?
-  strategicImportance     String      // low | medium | high | critical
-  expectedCloseDate       DateTime
-  lastInteractionAt       DateTime
-  nextSteps               String?
-  requiredCapabilityIds   String[]
-  // ── AI Experience Labs custom fields ──────────────────────────────────────
+  id                    String   @id @default(cuid()) @map("_id")
+  name                  String
+  description           String
+  clientId              String
+  client                Client   @relation(fields: [clientId], references: [id])
+  productId             String?
+  product               Product? @relation(fields: [productId], references: [id])
+  ownerId               String
+  owner                 Resource @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  value                 Float
+  probability           Int
+  stage                 String
+  source                String?
+  strategicImportance   String
+  expectedCloseDate     DateTime
+  lastInteractionAt     DateTime
+  nextSteps             String?
+  requiredCapabilityIds String[]
   contactName           String?
   contactTitle          String?
   contactEmail          String?
   trinamixOwner         String?
-  dealRating            Int?      @default(0)
-  copyOracle            Boolean?  @default(false)
+  dealRating            Int?     @default(0)
+  copyOracle            Boolean? @default(false)
   emailOwner            String?
   interestedScenarios   String[]
   followUpNotes         String?
   urgentNotes           String?
   lastReviewed          DateTime?
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
-// =============================================================================
-// Delivery: projects, workstreams, milestones, tasks
-// =============================================================================
-
 model Project {
-  id            String        @id @default(cuid())
-  name          String
-  code          String        @unique
-  type          String        // delivery | internal | rd | poc
-  charter       String
-  scope         String
-  status        String        // not_started | in_progress | on_track | at_risk | blocked | done | on_hold | cancelled
-  rag           String        // green | yellow | orange | red
-  weeklyStatus  String?
-  startDate     DateTime
-  endDate       DateTime
-  budget        Decimal?      @db.Decimal(14, 2)
-  spent         Decimal?      @db.Decimal(14, 2)
-  clientId      String
-  client        Client        @relation(fields: [clientId], references: [id])
-  productId     String?
-  product       Product?      @relation(fields: [productId], references: [id])
-  ownerId       String
-  owner         Resource      @relation("ProjectOwner", fields: [ownerId], references: [id])
-  resourceIds   String[]      // soft pointer for matrix; canonical state is in ResourceAllocation
-  milestones    Milestone[]
-  workstreams   Workstream[]
-  tasks         Task[]
-  risks         Risk[]
-  issues        Issue[]
-  decisions     Decision[]
-  allocations   ResourceAllocation[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id           String               @id @default(cuid()) @map("_id")
+  name         String
+  code         String               @unique
+  type         String
+  charter      String
+  scope        String
+  status       String
+  rag          String
+  weeklyStatus String?
+  startDate    DateTime
+  endDate      DateTime
+  budget       Float?
+  spent        Float?
+  clientId     String
+  client       Client               @relation(fields: [clientId], references: [id])
+  productId    String?
+  product      Product?             @relation(fields: [productId], references: [id])
+  ownerId      String
+  owner        Resource             @relation("ProjectOwner", fields: [ownerId], references: [id])
+  resourceIds  String[]
+  milestones   Milestone[]
+  workstreams  Workstream[]
+  tasks        Task[]
+  risks        Risk[]
+  issues       Issue[]
+  decisions    Decision[]
+  allocations  ResourceAllocation[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 }
 
 model Milestone {
-  id          String     @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
   name        String
   description String?
   dueDate     DateTime
-  status      String     // not_started | in_progress | blocked | at_risk | done | cancelled
+  status      String
   ownerId     String?
   projectId   String
-  project     Project    @relation(fields: [projectId], references: [id])
+  project     Project  @relation(fields: [projectId], references: [id])
 }
 
 model Workstream {
-  id            String     @id @default(cuid())
-  name          String
-  description   String?
-  status        String
-  ownerId       String
-  projectId     String
-  project       Project    @relation(fields: [projectId], references: [id])
-  tasks         Task[]
+  id          String  @id @default(cuid()) @map("_id")
+  name        String
+  description String?
+  status      String
+  ownerId     String
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id])
+  tasks       Task[]
 }
 
 model Task {
-  id           String       @id @default(cuid())
-  title        String
-  description  String?
-  status       String       // not_started | in_progress | blocked | in_review | done
-  priority     String       // p0 | p1 | p2 | p3
-  dueDate      DateTime?
-  assigneeId   String?
-  assignee     Resource?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  projectId    String?
-  project      Project?     @relation(fields: [projectId], references: [id])
-  workstreamId String?
-  workstream   Workstream?  @relation(fields: [workstreamId], references: [id])
-  parentId     String?
-  parent       Task?        @relation("TaskHierarchy", fields: [parentId], references: [id])
-  children     Task[]       @relation("TaskHierarchy")
-  aiSourced    Boolean      @default(false)
+  id                 String      @id @default(cuid()) @map("_id")
+  title              String
+  description        String?
+  status             String
+  priority           String
+  dueDate            DateTime?
+  assigneeId         String?
+  assignee           Resource?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  projectId          String?
+  project            Project?    @relation(fields: [projectId], references: [id])
+  workstreamId       String?
+  workstream         Workstream? @relation(fields: [workstreamId], references: [id])
+  parentId           String?
+  parent             Task?       @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children           Task[]      @relation("TaskHierarchy")
+  aiSourced          Boolean     @default(false)
   sourceTranscriptId String?
-  effortHours  Float?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  effortHours        Float?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 }
 
 model ActionItem {
-  id                  String      @id @default(cuid())
-  title               String
-  status              String      @default("open") // open | in_progress | done | cancelled
-  dueDate             DateTime?
-  assigneeId          String?
-  meetingId           String?
-  projectId           String?
-  productId           String?
-  opportunityId       String?
-  source              String      @default("manual") // manual | ai_extracted
-  confidence          String?     // low | medium | high
-  reviewed            Boolean     @default(false)
-  sourceTranscriptId  String?
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  id                 String    @id @default(cuid()) @map("_id")
+  title              String
+  status             String    @default("open")
+  dueDate            DateTime?
+  assigneeId         String?
+  meetingId          String?
+  projectId          String?
+  productId          String?
+  opportunityId      String?
+  source             String    @default("manual")
+  confidence         String?
+  reviewed           Boolean   @default(false)
+  sourceTranscriptId String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
-
-// =============================================================================
-// Allocations: who is committed to what, when
-// =============================================================================
 
 model ResourceAllocation {
-  id           String     @id @default(cuid())
-  resourceId   String
-  resource     Resource   @relation(fields: [resourceId], references: [id])
-  productId    String?
-  projectId    String?
-  project      Project?   @relation(fields: [projectId], references: [id])
+  id            String   @id @default(cuid()) @map("_id")
+  resourceId    String
+  resource      Resource @relation(fields: [resourceId], references: [id])
+  productId     String?
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id])
   opportunityId String?
-  role         String     // role on this effort
-  hoursPerWeek Float
-  startDate    DateTime
-  endDate      DateTime
-  confidence   String     @default("committed") // proposed | committed | locked
+  role          String
+  hoursPerWeek  Float
+  startDate     DateTime
+  endDate       DateTime
+  confidence    String   @default("committed")
 }
 
-// =============================================================================
-// Risk / Issue / Decision / Dependency / OpenQuestion
-// =============================================================================
-
 model Risk {
-  id           String     @id @default(cuid())
+  id           String   @id @default(cuid()) @map("_id")
   title        String
   description  String
-  severity     String     // low | medium | high | critical
-  likelihood   Float      // 0..1
-  impact       Int        // 1..5
-  status       String     // open | mitigating | monitoring | closed
+  severity     String
+  likelihood   Float
+  impact       Int
+  status       String
   mitigation   String?
   ownerId      String
-  owner        Resource   @relation("RiskOwner", fields: [ownerId], references: [id])
+  owner        Resource @relation("RiskOwner", fields: [ownerId], references: [id])
   productId    String?
-  product      Product?   @relation(fields: [productId], references: [id])
+  product      Product? @relation(fields: [productId], references: [id])
   projectId    String?
-  project      Project?   @relation(fields: [projectId], references: [id])
-  identifiedAt DateTime   @default(now())
+  project      Project? @relation(fields: [projectId], references: [id])
+  identifiedAt DateTime @default(now())
 }
 
 model Issue {
-  id          String     @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
   title       String
   description String
   severity    String
-  status      String     // open | investigating | resolving | resolved | closed
+  status      String
   resolution  String?
   ownerId     String?
   projectId   String?
-  project     Project?   @relation(fields: [projectId], references: [id])
-  raisedAt    DateTime   @default(now())
+  project     Project? @relation(fields: [projectId], references: [id])
+  raisedAt    DateTime @default(now())
 }
 
 model Decision {
-  id              String     @id @default(cuid())
-  title           String
-  context         String
-  decision        String
-  rationale       String?
-  status          String     // pending | decided | overturned
-  alternatives    String[]
-  decidedAt       DateTime   @default(now())
-  decidedBy       String
-  decider         Resource   @relation("DecisionMaker", fields: [decidedBy], references: [id])
-  productId       String?
-  projectId       String?
-  project         Project?   @relation(fields: [projectId], references: [id])
-  opportunityId   String?
+  id            String   @id @default(cuid()) @map("_id")
+  title         String
+  context       String
+  decision      String
+  rationale     String?
+  status        String
+  alternatives  String[]
+  decidedAt     DateTime @default(now())
+  decidedBy     String
+  decider       Resource @relation("DecisionMaker", fields: [decidedBy], references: [id])
+  productId     String?
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id])
+  opportunityId String?
 }
 
 model OpenQuestion {
-  id          String   @id @default(cuid())
-  question    String
-  context     String?
-  status      String   // open | answered | dismissed
-  answer      String?
-  askedAt     DateTime @default(now())
-  answeredAt  DateTime?
+  id         String    @id @default(cuid()) @map("_id")
+  question   String
+  context    String?
+  status     String
+  answer     String?
+  askedAt    DateTime  @default(now())
+  answeredAt DateTime?
 }
 
 model Dependency {
-  id          String   @id @default(cuid())
-  fromId      String   // polymorphic source id
-  fromType    String   // product | project | opportunity | task
+  id          String @id @default(cuid()) @map("_id")
+  fromId      String
+  fromType    String
   toId        String
   toType      String
-  kind        String   // requires | blocks | enables | informs
-  criticality String   // low | medium | high
+  kind        String
+  criticality String
   notes       String?
 }
 
-// =============================================================================
-// Calendar & meetings
-// =============================================================================
-
 model Meeting {
-  id           String      @id @default(cuid())
-  title        String
-  scheduledAt  DateTime
-  durationMin  Int         @default(60)
-  attendeeIds  String[]
-  clientId     String?
-  client       Client?     @relation(fields: [clientId], references: [id])
-  agenda       String?
-  notes        String?
-  transcripts  Transcript[]
+  id          String       @id @default(cuid()) @map("_id")
+  title       String
+  scheduledAt DateTime
+  durationMin Int          @default(60)
+  attendeeIds String[]
+  clientId    String?
+  client      Client?      @relation(fields: [clientId], references: [id])
+  agenda      String?
+  notes       String?
+  transcripts Transcript[]
 }
 
 model Transcript {
-  id                String          @id @default(cuid())
-  title             String
-  source            String          // upload | zoom | gmeet | teams
-  uploadedAt        DateTime        @default(now())
-  uploadedBy        String
-  status            String          // uploaded | processing | extracted | reviewed | committed
-  meetingId         String?
-  meeting           Meeting?        @relation(fields: [meetingId], references: [id])
-  rawText           String          @db.Text
-  extractionJob     ExtractionJob?
-  createdAt         DateTime        @default(now())
+  id            String         @id @default(cuid()) @map("_id")
+  title         String
+  source        String
+  uploadedAt    DateTime       @default(now())
+  uploadedBy    String
+  status        String
+  meetingId     String?
+  meeting       Meeting?       @relation(fields: [meetingId], references: [id])
+  rawText       String
+  extractionJob ExtractionJob?
+  createdAt     DateTime       @default(now())
 }
 
 model ExtractionJob {
-  id                String      @id @default(cuid())
-  transcriptId      String      @unique
-  transcript        Transcript  @relation(fields: [transcriptId], references: [id])
-  provider          String      // mock | anthropic | openai | oci | gemini
-  status            String      // queued | running | succeeded | failed
-  startedAt         DateTime    @default(now())
-  completedAt       DateTime?
-  resultJson        Json?       // ExtractionResult shape
-  errorMessage      String?
+  id           String     @id @default(cuid()) @map("_id")
+  transcriptId String     @unique
+  transcript   Transcript @relation(fields: [transcriptId], references: [id])
+  provider     String
+  status       String
+  startedAt    DateTime   @default(now())
+  completedAt  DateTime?
+  resultJson   Json?
+  errorMessage String?
 }
 
-// =============================================================================
-// Roadmap, capabilities, accelerators, leadership reporting
-// =============================================================================
-
 model RoadmapItem {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid()) @map("_id")
   productId   String
-  product     Product  @relation(fields: [productId], references: [id])
+  product     Product @relation(fields: [productId], references: [id])
   name        String
   description String?
-  quarter     String   // YYYY-Qn
-  status      String   // planned | in_progress | released | descoped
+  quarter     String
+  status      String
   ownerId     String?
 }
 
 model Capability {
-  id              String                 @id @default(cuid())
-  name            String                 @unique
-  description     String
-  maturity        String                 // research | prototype | pilot | production | retired
-  reusePotential  Int                    @default(0) // 0..100
-  dependsOn       String[]               // freeform tags or capability ids
-  products        CapabilityOnProduct[]
-  accelerators    Accelerator[]
+  id             String                @id @default(cuid()) @map("_id")
+  name           String                @unique
+  description    String
+  maturity       String
+  reusePotential Int                   @default(0)
+  dependsOn      String[]
+  products       CapabilityOnProduct[]
+  accelerators   Accelerator[]
 }
 
 model CapabilityOnProduct {
+  id           String     @id @default(cuid()) @map("_id")
   productId    String
   product      Product    @relation(fields: [productId], references: [id])
   capabilityId String
   capability   Capability @relation(fields: [capabilityId], references: [id])
-  @@id([productId, capabilityId])
+
+  @@unique([productId, capabilityId])
 }
 
 model Accelerator {
-  id            String     @id @default(cuid())
-  name          String
-  description   String
-  capabilityId  String
-  capability    Capability @relation(fields: [capabilityId], references: [id])
-  status        String     // draft | published | deprecated
-  url           String?
+  id           String     @id @default(cuid()) @map("_id")
+  name         String
+  description  String
+  capabilityId String
+  capability   Capability @relation(fields: [capabilityId], references: [id])
+  status       String
+  url          String?
 }
 
 model AIUseCase {
-  id              String   @id @default(cuid())
-  name            String
-  description     String
-  category        String   // automation | analytics | generation | extraction
-  productId       String?
-  expectedValue   Decimal? @db.Decimal(14, 2)
-  status          String
+  id            String  @id @default(cuid()) @map("_id")
+  name          String
+  description   String
+  category      String
+  productId     String?
+  expectedValue Float?
+  status        String
 }
 
 model LeadershipUpdate {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   weekOf        DateTime
   summary       String
   highlights    String[]
   lowlights     String[]
   asks          String[]
   generatedById String?
-  generatedAt   DateTime @default(now())
+  generatedAt   DateTime  @default(now())
   publishedAt   DateTime?
 }
 
-// =============================================================================
-// Cross-cutting: custom fields, saved views, audit log
-// =============================================================================
-
 model CustomField {
-  id           String              @id @default(cuid())
-  objectType   String              // 'opportunity' | 'project' | 'resource' | etc.
-  name         String
-  type         String              // text | longText | number | currency | date | boolean | select | multiSelect | url | reference
-  options      Json?               // for select / multiSelect
-  required     Boolean             @default(false)
-  helpText     String?
-  values       CustomFieldValue[]
-  createdAt    DateTime            @default(now())
+  id         String             @id @default(cuid()) @map("_id")
+  objectType String
+  name       String
+  type       String
+  options    Json?
+  required   Boolean            @default(false)
+  helpText   String?
+  values     CustomFieldValue[]
+  createdAt  DateTime           @default(now())
+
   @@unique([objectType, name])
 }
 
 model CustomFieldValue {
-  id            String       @id @default(cuid())
-  fieldId       String
-  field         CustomField  @relation(fields: [fieldId], references: [id])
-  objectType    String
-  objectId      String
-  value         Json
-  // soft relation back to common types so resource list shows in IDE
-  resource      Resource?    @relation("ResourceCustomValue", fields: [objectId], references: [id], map: "cfv_resource_fk")
-  updatedAt     DateTime     @updatedAt
-  @@index([objectType, objectId])
+  id         String      @id @default(cuid()) @map("_id")
+  fieldId    String
+  field      CustomField @relation(fields: [fieldId], references: [id])
+  objectType String
+  objectId   String
+  value      Json
+  resource   Resource?   @relation("ResourceCustomValue", fields: [objectId], references: [id])
+  updatedAt  DateTime    @updatedAt
 }
 
 model SavedView {
-  id          String   @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
   ownerId     String
   name        String
   objectType  String
-  layout      String   // table | kanban | calendar | timeline | gallery
+  layout      String
   filtersJson Json
   sortJson    Json?
   columns     String[]
@@ -496,11 +460,11 @@ model SavedView {
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
+  id         String   @id @default(cuid()) @map("_id")
   actorId    String?
   objectType String
   objectId   String
-  action     String   // created | updated | deleted | extracted | committed
+  action     String
   beforeJson Json?
   afterJson  Json?
   occurredAt DateTime @default(now())
@@ -508,22 +472,15 @@ model AuditLog {
   userEmail  String?
   ipAddress  String?
   userAgent  String?
-  @@index([objectType, objectId])
-  @@index([actorId])
-  @@index([occurredAt])
 }
 
-// =============================================================================
-// Auth: User accounts (separate from Resource to allow non-staff logins)
-// =============================================================================
-
 model User {
-  id           String    @id @default(cuid())
+  id           String    @id @default(cuid()) @map("_id")
   email        String    @unique
   passwordHash String
   name         String
-  role         String    @default("viewer") // admin | executive | product_owner | project_manager | delivery_lead | resource_manager | contributor | viewer
-  resourceId   String?   // optional link to a Resource record
+  role         String    @default("viewer")
+  resourceId   String?
   active       Boolean   @default(true)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())

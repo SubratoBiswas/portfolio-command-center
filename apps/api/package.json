@@ -5,16 +5,10 @@
   "description": "Trinamix Portfolio Command Center — NestJS + Prisma backend",
   "scripts": {
     "build": "nest build",
-    "start": "npx prisma migrate deploy && node dist/main.js",
+    "start": "npx prisma db push && node dist/main.js",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "lint": "eslint \"src/**/*.ts\" --fix",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force && npm run db:seed"
+    "lint": "eslint \"src/**/*.ts\" --fix"
   },
   "prisma": {
     "schema": "prisma/schema.prisma",

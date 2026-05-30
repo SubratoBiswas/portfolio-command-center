@@ -5,7 +5,7 @@
   "description": "Trinamix Portfolio Command Center — NestJS + Prisma backend",
   "scripts": {
     "build": "nest build",
-    "start": "node dist/main.js",
+    "start": "npx prisma migrate deploy && node dist/main.js",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint \"src/**/*.ts\" --fix",

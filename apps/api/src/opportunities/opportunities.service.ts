@@ -18,10 +18,6 @@ export class OpportunitiesService extends BaseCrudService<
     });
   }
 
-  /**
-   * Opportunities that haven't been touched in `staleDays` days,
-   * excluding deals already closed.
-   */
   async findStale(staleDays = 10) {
     const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000);
     return this.prisma.opportunity.findMany({
@@ -40,10 +36,10 @@ export class OpportunitiesService extends BaseCrudService<
       _sum: { value: true },
       _count: { _all: true },
     });
-    return rows.map((r: { stage: string; _sum: { value: { toNumber(): number } | null }; _count: { _all: number } }) => ({
+    return rows.map((r) => ({
       stage: r.stage,
       count: r._count._all,
-      value: r._sum.value?.toNumber() ?? 0,
+      value: r._sum.value ?? 0,
     }));
   }
 }

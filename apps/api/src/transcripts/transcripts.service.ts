@@ -1,34 +1,25 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import { Prisma } from '@prisma/client';
+import { Logger } from '@nestjs/common';
 import { BaseCrudService } from '../common/base-crud.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ProviderRegistry, ExtractionResult } from './extraction.providers';
-import { EXTRACTION_QUEUE, ExtractionJobPayload } from './extraction.queue';
+import { ProviderRegistry } from './extraction.providers';
+import { EXTRACTION_QUEUE } from './extraction.queue';
 
 @Injectable()
-export class TranscriptsService extends BaseCrudService<
-  Prisma.TranscriptWhereInput,
-  Prisma.TranscriptCreateInput,
-  Prisma.TranscriptUpdateInput,
-  any
-> {
+export class TranscriptsService extends BaseCrudService {
   private readonly logger = new Logger(TranscriptsService.name);
 
   constructor(
     prisma: PrismaService,
     private readonly providers: ProviderRegistry,
-    @InjectQueue(EXTRACTION_QUEUE) private readonly extractionQueue: Queue<ExtractionJobPayload>,
+    @InjectQueue(EXTRACTION_QUEUE) private readonly extractionQueue: Queue,
   ) {
     super(prisma, 'transcript', { extractionJob: true, meeting: true });
   }
 
-  /**
-   * Enqueue an async extraction job. Returns immediately with the job id.
-   * Poll GET /transcripts/:id/job-status to check progress.
-   */
-  async enqueueExtraction(transcriptId: string, provider?: string): Promise<{ jobId: string | number; status: string }> {
+  async enqueueExtraction(transcriptId: string, provider: string) {
     const transcript = await this.prisma.transcript.findUnique({ where: { id: transcriptId } });
     if (!transcript) throw new NotFoundException(`Transcript ${transcriptId} not found`);
 
@@ -38,45 +29,22 @@ export class TranscriptsService extends BaseCrudService<
       removeOnComplete: false,
       removeOnFail: false,
     });
-
     this.logger.log(`Enqueued extraction job ${job.id} for transcript ${transcriptId}`);
-
-    await this.prisma.transcript.update({
-      where: { id: transcriptId },
-      data: { status: 'processing' },
-    });
-
+    await this.prisma.transcript.update({ where: { id: transcriptId }, data: { status: 'processing' } });
     return { jobId: job.id, status: 'queued' };
   }
 
-  /**
-   * Poll the status of an extraction job for a given transcript.
-   * Returns the result if the job has completed.
-   */
-  async getExtractionStatus(transcriptId: string): Promise<{
-    status: string;
-    progress?: number;
-    result?: ExtractionResult;
-    error?: string;
-  }> {
+  async getExtractionStatus(transcriptId: string) {
     const dbJob = await this.prisma.extractionJob.findUnique({ where: { transcriptId } });
     if (!dbJob) return { status: 'not_started' };
-
     return {
       status: dbJob.status,
-      result: dbJob.status === 'succeeded' ? (dbJob.resultJson as unknown as ExtractionResult) : undefined,
+      result: dbJob.status === 'succeeded' ? dbJob.resultJson : undefined,
       error: dbJob.errorMessage ?? undefined,
     };
   }
 
-  /**
-   * Synchronous extraction (kept for backward-compat / direct provider override).
-   * Prefer enqueueExtraction for production use.
-   */
-  async extractSync(transcriptId: string, providerName?: string): Promise<{
-    job: any;
-    result: ExtractionResult;
-  }> {
+  async extractSync(transcriptId: string, providerName: string) {
     const transcript = await this.prisma.transcript.findUnique({ where: { id: transcriptId } });
     if (!transcript) throw new NotFoundException(`Transcript ${transcriptId} not found`);
 
@@ -86,18 +54,25 @@ export class TranscriptsService extends BaseCrudService<
     const job = await this.prisma.extractionJob.upsert({
       where: { transcriptId },
       create: { transcriptId, provider: provider.name, status: 'running', startedAt: new Date() },
-      update: { provider: provider.name, status: 'running', startedAt: new Date(), completedAt: null, errorMessage: null, resultJson: Prisma.JsonNull },
+      update: {
+        provider: provider.name,
+        status: 'running',
+        startedAt: new Date(),
+        completedAt: null,
+        errorMessage: null,
+        resultJson: null,
+      },
     });
 
     try {
       const result = await provider.extract(transcript.rawText);
       const updated = await this.prisma.extractionJob.update({
         where: { id: job.id },
-        data: { status: 'succeeded', completedAt: new Date(), resultJson: result as unknown as Prisma.InputJsonValue },
+        data: { status: 'succeeded', completedAt: new Date(), resultJson: result as any },
       });
       await this.prisma.transcript.update({ where: { id: transcriptId }, data: { status: 'extracted' } });
       return { job: updated, result };
-    } catch (err: any) {
+    } catch (err) {
       await this.prisma.extractionJob.update({
         where: { id: job.id },
         data: { status: 'failed', completedAt: new Date(), errorMessage: err?.message ?? String(err) },
@@ -106,17 +81,7 @@ export class TranscriptsService extends BaseCrudService<
     }
   }
 
-  /**
-   * Commit reviewed extractions back into canonical tables.
-   */
-  async commit(
-    transcriptId: string,
-    payload: Partial<ExtractionResult> & {
-      defaultOwnerId?: string;
-      defaultProjectId?: string;
-      defaultClientId?: string;
-    },
-  ) {
+  async commit(transcriptId: string, payload: any) {
     const transcript = await this.prisma.transcript.findUnique({ where: { id: transcriptId } });
     if (!transcript) throw new NotFoundException(`Transcript ${transcriptId} not found`);
 
@@ -136,7 +101,7 @@ export class TranscriptsService extends BaseCrudService<
           confidence: ai.confidence >= 0.8 ? 'high' : ai.confidence >= 0.6 ? 'medium' : 'low',
           sourceTranscriptId: transcriptId,
           projectId: payload.defaultProjectId ?? null,
-        } as any,
+        },
       });
       created.actionItems++;
     }
@@ -153,7 +118,7 @@ export class TranscriptsService extends BaseCrudService<
           ownerId,
           projectId: payload.defaultProjectId ?? null,
           identifiedAt: new Date(),
-        } as any,
+        },
       });
       created.risks++;
     }
@@ -169,7 +134,7 @@ export class TranscriptsService extends BaseCrudService<
           alternatives: [],
           decidedBy: ownerId,
           projectId: payload.defaultProjectId ?? null,
-        } as any,
+        },
       });
       created.decisions++;
     }

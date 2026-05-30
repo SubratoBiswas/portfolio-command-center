@@ -5,10 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Portfolio health: counts + ARR roll-ups + RAG breakdown.
-   * Powers the Command Center hero cards.
-   */
   async portfolioHealth() {
     const [
       productCount,
@@ -47,37 +43,28 @@ export class ReportsService {
         criticalRisks: criticalRiskCount,
         staleDeals: staleOpps,
       },
-      pipelineValue: pipelineValue._sum.value?.toNumber() ?? 0,
-      ragBreakdown: ragBreakdown.reduce<Record<string, number>>((acc, r) => {
+      pipelineValue: pipelineValue._sum.value ?? 0,
+      ragBreakdown: ragBreakdown.reduce((acc, r) => {
         acc[r.rag] = r._count._all;
         return acc;
-      }, {}),
+      }, {} as Record<string, number>),
     };
   }
 
-  /**
-   * Resource utilization: for each resource, sum hoursPerWeek across all
-   * active allocations and compare to weeklyCapacityHours. Returns a list
-   * with RAG colour for the heatmap.
-   */
   async utilization() {
     const now = new Date();
     const resources = await this.prisma.resource.findMany({
-      where: { active: true } as any,
+      where: { active: true },
       include: {
-        allocations: {
-          where: { startDate: { lte: now }, endDate: { gte: now } },
-        },
+        allocations: { where: { startDate: { lte: now }, endDate: { gte: now } } },
         location: true,
       },
     });
-
     return resources.map((r) => {
       const allocated = r.allocations.reduce((sum, a) => sum + a.hoursPerWeek, 0);
       const capacity = r.weeklyCapacityHours - (r.timeOffHours ?? 0);
       const pct = capacity > 0 ? (allocated / capacity) * 100 : 0;
-      const rag =
-        pct > 100 ? 'red' : pct > 90 ? 'orange' : pct > 75 ? 'yellow' : 'green';
+      const rag = pct > 100 ? 'red' : pct > 90 ? 'orange' : pct > 75 ? 'yellow' : 'green';
       return {
         resourceId: r.id,
         name: r.name,
@@ -93,9 +80,6 @@ export class ReportsService {
     });
   }
 
-  /**
-   * Top attention items for the Command Center: items needing exec eyeballs.
-   */
   async attention() {
     const [redProjects, criticalRisks, staleOpps, blockedTasks] = await Promise.all([
       this.prisma.project.findMany({

@@ -1,9 +1,13 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { TranscriptsService } from './transcripts.service';
+import { ProviderRegistry } from './extraction.providers';
 
 @Controller('transcripts')
 export class TranscriptsController {
-  constructor(private readonly svc: TranscriptsService) {}
+  constructor(
+    private readonly svc: TranscriptsService,
+    private readonly providers: ProviderRegistry,
+  ) {}
 
   @Get()
   findAll(@Query() query: Record<string, string>) {
@@ -29,6 +33,17 @@ export class TranscriptsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.svc.remove(id);
+  }
+
+  /**
+   * Direct text extraction — no transcript record needed.
+   * POST /transcripts/extract-text  { text: string, provider?: string }
+   */
+  @Post('extract-text')
+  async extractText(@Body() body: { text: string; provider?: string }) {
+    const provider = this.providers.pick(body.provider ?? 'mock');
+    const result = await provider.extract(body.text);
+    return result;
   }
 
   @Post(':id/extract')

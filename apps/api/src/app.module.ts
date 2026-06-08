@@ -24,6 +24,7 @@ import { ActionItemsModule } from './action-items/action-items.module';
 import { ReportsModule } from './reports/reports.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { LocationsModule } from './locations/locations.module';
+import { ChatModule } from './chat/chat.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
@@ -58,6 +59,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     ReportsModule,
     AuditLogModule,
     LocationsModule,
+    ChatModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

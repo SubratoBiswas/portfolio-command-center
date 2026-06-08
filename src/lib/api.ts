@@ -203,6 +203,20 @@ export const api = {
   },
   decisions: {
     list: () => USE_API ? call<typeof seed.decisions>('GET', '/decisions') : Promise.resolve(seed.decisions),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/decisions', data)
+      : Promise.resolve((() => { const r = { ...data, id: `d-${Date.now()}`, decidedAt: new Date().toISOString() }; (seed.decisions as any[]).push(r); return r; })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/decisions/${id}`, data)
+      : Promise.resolve((() => { const d = (seed.decisions as any[]).find(d => d.id === id); if (d) Object.assign(d, data); return d; })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/decisions/${id}`)
+      : Promise.resolve((() => { const i = (seed.decisions as any[]).findIndex(d => d.id === id); if (i !== -1) (seed.decisions as any[]).splice(i, 1); return { id, deleted: true }; })()),
+  },
+  chat: {
+    send: (message: string) => USE_API
+      ? call<{ reply: string }>('POST', '/chat', { message })
+      : Promise.resolve({ reply: 'Chat requires live API mode (VITE_USE_API=true).' }),
   },
   meetings: {
     list: () => USE_API ? call<typeof seed.meetings>('GET', '/meetings') : Promise.resolve(seed.meetings),

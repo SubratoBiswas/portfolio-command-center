@@ -85,7 +85,7 @@ export function TopBar({ onOpenAssistant }: TopBarProps) {
           className="gap-1.5"
         >
           <Sparkles size={13} />
-          <span>Chief of Staff</span>
+          <span>Chat Assistant</span>
           <Badge tone="bg-brand text-white" size="xs">AI</Badge>
         </Button>
 

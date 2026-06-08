@@ -28,7 +28,7 @@ export function AIAssistant({ open, onOpenChange }: AIAssistantProps) {
   const [messages, setMessages] = React.useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hi! I'm your Chief of Staff AI. I have access to your live portfolio data — projects, opportunities, risks, resources, and more. Ask me anything!",
+      content: "Hi! I'm your Chat Assistant AI. I have access to your live portfolio data — projects, opportunities, risks, resources, and more. Ask me anything!",
     },
   ]);
   const [loading, setLoading] = React.useState(false);
@@ -62,7 +62,7 @@ export function AIAssistant({ open, onOpenChange }: AIAssistantProps) {
             <span className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center">
               <Sparkles size={12} className="text-white" />
             </span>
-            Chief of Staff AI
+            Chat Assistant AI
           </span>
         }
         onClose={() => onOpenChange(false)}

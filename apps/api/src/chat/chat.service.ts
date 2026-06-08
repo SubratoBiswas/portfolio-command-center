@@ -24,7 +24,7 @@ export class ChatService {
         this.prisma.product.findMany({ take: 15 }),
       ]);
 
-      const systemPrompt = `You are the Chief of Staff AI for Trinamix, a consulting and AI-solutions firm. 
+      const systemPrompt = `You are the Chat Assistant AI for Trinamix, a consulting and AI-solutions firm.
 You have access to live portfolio data and answer questions concisely and accurately.
 
 PORTFOLIO SNAPSHOT:

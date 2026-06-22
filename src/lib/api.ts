@@ -223,6 +223,7 @@ export const api = {
   },
   transcripts: {
     list: () => USE_API ? call<typeof seed.transcripts>('GET', '/transcripts') : Promise.resolve(seed.transcripts),
+    create: (body: Record<string, unknown>) => call<{ id: string }>('POST', '/transcripts', body),
     extract: (id: string, provider?: string, sync?: boolean) =>
       call<{ jobId?: string | number; status?: string; job?: unknown; result?: unknown }>('POST', `/transcripts/${id}/extract`, { provider, sync }),
     jobStatus: (id: string) =>
@@ -336,5 +337,3 @@ export async function checkApiHealth(): Promise<{ ok: boolean; latency_ms?: numb
   if (!USE_API) return { ok: true };
   const start = Date.now();
   try { await fetch(`${API_URL}/reports/portfolio-health`, { method: 'GET' }); return { ok: true, latency_ms: Date.now() - start }; }
-  catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) }; }
-}

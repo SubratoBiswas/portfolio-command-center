@@ -337,3 +337,5 @@ export async function checkApiHealth(): Promise<{ ok: boolean; latency_ms?: numb
   if (!USE_API) return { ok: true };
   const start = Date.now();
   try { await fetch(`${API_URL}/reports/portfolio-health`, { method: 'GET' }); return { ok: true, latency_ms: Date.now() - start }; }
+  catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) }; }
+}

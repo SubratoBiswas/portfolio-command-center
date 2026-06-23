@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Upload, Sparkles, CheckCircle2, XCircle, Edit3, AlertTriangle, FileText, Loader2, ChevronRight, Lightbulb } from 'lucide-react';
 import { useTranscripts, useLookups, useExtractionJobStatus } from '@/lib/hooks';
 import { extractFromTranscript, SAMPLE_TRANSCRIPT } from '@/lib/ai-extraction';
@@ -51,6 +51,15 @@ export default function Transcripts() {
   const [extracting, setExtracting] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [savedTranscriptId, setSavedTranscriptId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const content = await file.text();
+    setText(content);
+    if (e.target) e.target.value = '';
+  }
   const [reviewStatus, setReviewStatus] = useState<Record<string, 'pending' | 'accepted' | 'rejected'>>({});
   const [committing, setCommitting] = useState(false);
   const [commitResult, setCommitResult] = useState<Record<string, number> | null>(null);
@@ -261,12 +270,35 @@ export default function Transcripts() {
                   <option value="anthropic">Anthropic Claude</option>
                 </Select>
               </div>
+              {/* Upload button */}
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,.md,.text"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs gap-1.5"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={12} /> Upload file (.txt, .md)
+                </Button>
+                {text !== SAMPLE_TRANSCRIPT && text.trim() && (
+                  <span className="text-2xs text-ok flex items-center gap-1">
+                    <CheckCircle2 size={11} /> File loaded ({text.length} chars)
+                  </span>
+                )}
+              </div>
               <Textarea
                 value={text}
                 onChange={e => setText(e.target.value)}
-                rows={12}
+                rows={10}
                 className="font-mono text-xs resize-none"
-                placeholder="Paste meeting transcript here…"
+                placeholder="Paste meeting transcript here, or upload a .txt file above…"
               />
               <Button variant="primary" className="w-full" onClick={handleExtract} disabled={extracting || !text.trim()}>
                 {extracting

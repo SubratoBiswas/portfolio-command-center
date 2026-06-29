@@ -134,6 +134,13 @@ export interface Opportunity {
   blockers: string[];
   risks: string[];
   aiNextBestAction?: string;
+  followUpDate?: ISODate;
+  plannedStartDate?: ISODate;
+  plannedEndDate?: ISODate;
+  plannedResources?: number;
+  teamAssignment?: string;
+  parked?: boolean;
+  history?: { date: ISODate; text: string; author?: string }[];
   createdAt: ISODate;
 }
 

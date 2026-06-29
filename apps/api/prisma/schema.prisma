@@ -135,6 +135,13 @@ model Opportunity {
   followUpNotes         String?
   urgentNotes           String?
   lastReviewed          DateTime?
+  followUpDate          DateTime?
+  plannedStartDate      DateTime?
+  plannedEndDate        DateTime?
+  plannedResources      Int?      @default(0)
+  teamAssignment        String?
+  parked                Boolean?  @default(false)
+  history               Json?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }

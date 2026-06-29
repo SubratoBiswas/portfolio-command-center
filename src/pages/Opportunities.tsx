@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   Plus, Star, LayoutGrid, List, BarChart2, Search, Edit2, Trash2,
   AlertCircle, ChevronDown, ChevronUp, Calendar, ClipboardList,
   Mail, User, CheckCircle2, Clock, X, Settings,
+  Mic, Send, Download, AlertTriangle, Sheet, History,
 } from 'lucide-react';
 import { useOpportunities, useCreateOpportunity, useUpdateOpportunity, useDeleteOpportunity } from '@/lib/hooks';
+import { getUser } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
@@ -137,7 +139,7 @@ const ACTION_SEED = [
 ];
 
 // ─── Blank forms ──────────────────────────────────────────────────────────────
-const EMPTY_OPP = { name:'', contactName:'', contactTitle:'', contactEmail:'', trinamixOwner:'', aiStage:'reply_sent', dealRating:2, copyOracle:false, emailOwner:'', value:'', interestedScenarios:[] as string[], followUpNotes:'', nextSteps:'', urgentNotes:'', lastReviewed:'' };
+const EMPTY_OPP = { name:'', contactName:'', contactTitle:'', contactEmail:'', trinamixOwner:'', aiStage:'reply_sent', dealRating:2, copyOracle:false, emailOwner:'', value:'', interestedScenarios:[] as string[], followUpNotes:'', nextSteps:'', urgentNotes:'', lastReviewed:'', followUpDate:'', plannedStartDate:'', plannedEndDate:'', plannedResources:'', teamAssignment:'', parked:false, history:[] as any[], newUpdate:'' };
 const EMPTY_CAL = { company:'', date:'', time:'10:00 PST', attendees:'', status:'scheduled', type:'Workshop' };
 const EMPTY_ACT = { company:'', owner:'', scenarios:[] as string[], requirements:[] as string[], action:'', lastDemoed:'' };
 
@@ -153,6 +155,55 @@ function StarRating({ value, onChange, readonly }: { value: number; onChange?: (
       ))}
     </div>
   );
+}
+
+// Mic dictation (Web Speech API)
+function MicButton({ onResult, title }: { onResult: (t: string) => void; title?: string }) {
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<any>(null);
+  function toggle() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { alert('Speech recognition is not supported here. Try Chrome or Edge.'); return; }
+    if (listening) { recRef.current?.stop(); return; }
+    const rec = new SR();
+    rec.lang = 'en-US'; rec.interimResults = false; rec.continuous = false;
+    rec.onresult = (e: any) => {
+      const t = Array.from(e.results).map((r: any) => r[0].transcript).join(' ').trim();
+      if (t) onResult(t);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recRef.current = rec; setListening(true); rec.start();
+  }
+  return (
+    <button type="button" onClick={toggle} title={title || 'Dictate'}
+      className={cn('p-2 rounded-lg border transition-colors shrink-0 self-start',
+        listening ? 'bg-red-500 text-white border-red-500 animate-pulse' : 'border-line text-ink-muted hover:text-brand-700 hover:border-brand-400')}>
+      <Mic size={14} />
+    </button>
+  );
+}
+
+const CLOSED_STAGES = ['not_interested','not_legit','deal_closed'];
+function isFollowUpDue(o: any): boolean {
+  if (!o?.followUpDate) return false;
+  if (CLOSED_STAGES.includes(o.aiStage)) return false;
+  const d = new Date(o.followUpDate); if (isNaN(d.getTime())) return false;
+  const today = new Date(); today.setHours(23,59,59,999);
+  return d.getTime() <= today.getTime();
+}
+function buildFollowUpMailto(o: any): string {
+  const to = (o.contactEmail || '').trim();
+  const stage = STAGE_MAP[o.aiStage as keyof typeof STAGE_MAP]?.label ?? o.aiStage ?? '';
+  const subject = `Follow-up: ${o.name} — Trinamix AI`;
+  const body = [
+    `Hi ${o.contactName || 'there'},`, '',
+    `Following up on ${o.name}.`,
+    stage ? `Current status: ${stage}.` : '',
+    o.nextSteps ? `Next step: ${o.nextSteps}` : '',
+    '', 'Best regards,', o.trinamixOwner || o.emailOwner || 'Trinamix Team',
+  ].filter(Boolean).join('\n');
+  return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 function StageBadge({ stageKey }: { stageKey: string }) {
@@ -177,7 +228,7 @@ function ScenarioBadges({ scenarios }: { scenarios: string[] }) {
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
-type TabKey = 'pipeline' | 'inquiries' | 'calendar' | 'action' | 'summary';
+type TabKey = 'pipeline' | 'inquiries' | 'planning' | 'calendar' | 'action' | 'summary';
 
 export default function Opportunities() {
   // ── Global filters
@@ -186,6 +237,7 @@ export default function Opportunities() {
   const [filterStage, setFilterStage] = useState('all');
   const [filterOwner, setFilterOwner] = useState('all');
   const [filterRating, setFilterRating] = useState('all');
+  const [sortKey, setSortKey] = useState<'rating'|'name'|'followup'>('rating');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
@@ -241,13 +293,48 @@ export default function Opportunities() {
 
   const activeOpps = useMemo(() => opps.filter(o => !['not_interested','not_legit'].includes(o.aiStage)), [opps]);
 
-  const filtered = useMemo(() => opps.filter(o => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return (!q || (o.name??'').toLowerCase().includes(q) || (o.contactName??'').toLowerCase().includes(q) || (o.trinamixOwner??'').toLowerCase().includes(q))
+    const list = opps.filter(o =>
+      (!q || (o.name??'').toLowerCase().includes(q) || (o.contactName??'').toLowerCase().includes(q) || (o.trinamixOwner??'').toLowerCase().includes(q))
       && (filterStage === 'all' || o.aiStage === filterStage)
       && (filterOwner === 'all' || o.trinamixOwner === filterOwner)
-      && (filterRating === 'all' || String(o.dealRating) === filterRating);
-  }), [opps, search, filterStage, filterOwner, filterRating]);
+      && (filterRating === 'all' || String(o.dealRating) === filterRating));
+    const cmp = (a:any,b:any) => {
+      if (sortKey === 'name') return (a.name??'').localeCompare(b.name??'');
+      if (sortKey === 'followup') {
+        const ad = isFollowUpDue(a)?0:1, bd = isFollowUpDue(b)?0:1;
+        if (ad!==bd) return ad-bd;
+        return (a.followUpDate??'9999').localeCompare(b.followUpDate??'9999');
+      }
+      return (b.dealRating??0) - (a.dealRating??0); // rating high -> low
+    };
+    return [...list].sort(cmp);
+  }, [opps, search, filterStage, filterOwner, filterRating, sortKey]);
+
+  // Duplicate company-name detection (normalized)
+  const dupNames = useMemo(() => {
+    const counts: Record<string, number> = {};
+    opps.forEach(o => { const k=(o.name||'').trim().toLowerCase(); if(k) counts[k]=(counts[k]||0)+1; });
+    return new Set(Object.keys(counts).filter(k => counts[k] > 1));
+  }, [opps]);
+
+  // Follow-ups due today/overdue
+  const dueOpps = useMemo(() => opps.filter(isFollowUpDue), [opps]);
+
+  // Resource-planning rows: active first by start date, parked sink to bottom
+  const planningRows = useMemo(() => {
+    const active = opps.filter(o => !['not_interested','not_legit'].includes(o.aiStage));
+    return [...active].sort((a,b) => {
+      const ap=a.parked?1:0, bp=b.parked?1:0; if(ap!==bp) return ap-bp;
+      const ad=a.plannedStartDate||'', bd=b.plannedStartDate||'';
+      if(ad&&bd) return ad.localeCompare(bd); if(ad) return -1; if(bd) return 1;
+      return (b.dealRating||0)-(a.dealRating||0);
+    });
+  }, [opps]);
+  const totalPlannedResources = useMemo(
+    () => planningRows.filter(o=>!o.parked).reduce((sum,o)=>sum+(Number(o.plannedResources)||0),0),
+    [planningRows]);
 
   const ownerSummary = useMemo(() => {
     const m: Record<string, any> = {};
@@ -276,7 +363,13 @@ export default function Opportunities() {
       dealRating:o.dealRating??0, copyOracle:o.copyOracle??false, emailOwner:o.emailOwner??'',
       value:o.value!=null?String(o.value):'', interestedScenarios:o.interestedScenarios??[],
       followUpNotes:o.followUpNotes??'', nextSteps:o.nextSteps??'',
-      urgentNotes:o.urgentNotes??'', lastReviewed:o.lastReviewed?o.lastReviewed.split('T')[0]:'' });
+      urgentNotes:o.urgentNotes??'', lastReviewed:o.lastReviewed?o.lastReviewed.split('T')[0]:'',
+      followUpDate:o.followUpDate?o.followUpDate.split('T')[0]:'',
+      plannedStartDate:o.plannedStartDate?o.plannedStartDate.split('T')[0]:'',
+      plannedEndDate:o.plannedEndDate?o.plannedEndDate.split('T')[0]:'',
+      plannedResources:o.plannedResources!=null?String(o.plannedResources):'',
+      teamAssignment:o.teamAssignment??'', parked:Boolean(o.parked),
+      history:Array.isArray(o.history)?o.history:[], newUpdate:'' });
     setOppErr(''); setOppModal(true);
   }
   function setOF(k: string, v: any) { setOppForm(f => ({ ...f, [k]: v })); }
@@ -299,6 +392,11 @@ export default function Opportunities() {
     if (!oppForm.name.trim()) { setOppErr("Company name is required."); return; }
     setOppSaving(true); setOppErr("");
     var isNew = !oppEdit;
+    const prevHistory = Array.isArray(oppForm.history) ? oppForm.history : [];
+    const upd = (oppForm.newUpdate || '').trim();
+    const nextHistory = upd
+      ? [{ date: new Date().toISOString(), text: upd, author: (getUser()?.name || oppForm.trinamixOwner || 'You') }, ...prevHistory]
+      : prevHistory;
     var payload = {
       name:                oppForm.name.trim(),
       description:         oppForm.followUpNotes && oppForm.followUpNotes.trim() ? oppForm.followUpNotes.trim() : oppForm.name.trim(),
@@ -319,6 +417,13 @@ export default function Opportunities() {
       followUpNotes:       oppForm.followUpNotes || null,
       urgentNotes:         oppForm.urgentNotes || null,
       lastReviewed:        oppForm.lastReviewed ? new Date(oppForm.lastReviewed).toISOString() : null,
+      followUpDate:        oppForm.followUpDate ? new Date(oppForm.followUpDate).toISOString() : null,
+      plannedStartDate:    oppForm.plannedStartDate ? new Date(oppForm.plannedStartDate).toISOString() : null,
+      plannedEndDate:      oppForm.plannedEndDate ? new Date(oppForm.plannedEndDate).toISOString() : null,
+      plannedResources:    oppForm.plannedResources ? Number(oppForm.plannedResources) : 0,
+      teamAssignment:      oppForm.teamAssignment || null,
+      parked:              Boolean(oppForm.parked),
+      history:             nextHistory,
     };
     if (isNew) {
       payload.expectedCloseDate = new Date(Date.now() + 90*86400000).toISOString();
@@ -335,6 +440,24 @@ export default function Opportunities() {
   async function handleDeleteOpp(id: string) {
     try { await deleteOpp.mutateAsync(id); setConfirmDelOpp(null); }
     catch (e: any) { void(e?.message ?? 'Delete failed.', 'error'); }
+  }
+  async function patchOpp(id: string, data: Record<string, any>) {
+    try { await updateOpp.mutateAsync({ id, ...data }); }
+    catch (e: any) { setOppErr(e?.message ?? 'Update failed.'); }
+  }
+  function exportPlanningCsv() {
+    const headers = ['Company','Stage','Rating','Planned Start','Planned End','Resources','Team','Owner','Status'];
+    const rows = planningRows.map((o:any) => [
+      o.name, STAGE_MAP[o.aiStage as keyof typeof STAGE_MAP]?.label ?? o.aiStage, o.dealRating ?? 0,
+      o.plannedStartDate ? o.plannedStartDate.split('T')[0] : '', o.plannedEndDate ? o.plannedEndDate.split('T')[0] : '',
+      o.plannedResources ?? 0, o.teamAssignment ?? '', o.trinamixOwner ?? '', o.parked ? 'Parked' : 'Active',
+    ]);
+    const esc = (v:any) => '"' + String(v ?? '').replace(/"/g,'""') + '"';
+    const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'opportunity-planning.csv'; a.click();
+    URL.revokeObjectURL(url);
   }
 
   // ── Calendar handlers ───────────────────────────────────────────────────────
@@ -380,6 +503,7 @@ export default function Opportunities() {
   const TABS = [
     { key:'pipeline'  as TabKey, label:'Pipeline',    icon:<LayoutGrid size={13}/> },
     { key:'inquiries' as TabKey, label:'AI Inquiries', icon:<List size={13}/> },
+    { key:'planning'  as TabKey, label:'Planning',    icon:<Sheet size={13}/> },
     { key:'calendar'  as TabKey, label:'Calendar',    icon:<Calendar size={13}/> },
     { key:'action'    as TabKey, label:'Action Sheet', icon:<ClipboardList size={13}/> },
     { key:'summary'   as TabKey, label:'Summary',     icon:<BarChart2 size={13}/> },
@@ -422,6 +546,16 @@ export default function Opportunities() {
             <option value="all">All ratings</option>
             {[5,4,3,2,1,0].map(r => <option key={r} value={r}>{r > 0 ? '★'.repeat(r) : '☆ 0'}</option>)}
           </Select>
+          <Select value={sortKey} onChange={e => setSortKey(e.target.value as any)} className="text-xs w-40">
+            <option value="rating">Sort: Rating high→low</option>
+            <option value="name">Sort: Name A–Z</option>
+            <option value="followup">Sort: Follow-up due first</option>
+          </Select>
+          {dueOpps.length > 0 && (
+            <span className="text-2xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium inline-flex items-center gap-1">
+              <AlertTriangle size={11}/>{dueOpps.length} follow-up{dueOpps.length>1?'s':''} due
+            </span>
+          )}
           <span className="ml-auto text-2xs text-ink-muted">{filtered.length} of {opps.length}</span>
         </div>
       )}
@@ -513,13 +647,21 @@ export default function Opportunities() {
                     const expanded = expandedRows.has(o.id);
                     return (
                       <>
-                        <tr key={o.id} className={cn('hover:bg-paper-sunken/30 transition-colors group', expanded && 'bg-paper-sunken/20')}>
+                        <tr key={o.id} className={cn('hover:bg-paper-sunken/30 transition-colors group', expanded && 'bg-paper-sunken/20', isFollowUpDue(o) && 'bg-amber-50')}>
                           <td className="px-4 py-2.5 text-2xs text-ink-muted">{idx+1}</td>
                           <td className="px-4 py-2.5">
                             <button onClick={() => setExpandedRows(s => { const n=new Set(s); n.has(o.id)?n.delete(o.id):n.add(o.id); return n; })} className="flex items-start gap-1 text-left">
                               <span className="font-semibold text-xs text-ink hover:text-brand-700">{o.name}</span>
                               {expanded ? <ChevronUp size={12} className="mt-0.5 text-ink-muted shrink-0"/> : <ChevronDown size={12} className="mt-0.5 text-ink-muted shrink-0"/>}
                             </button>
+                            <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                              {dupNames.has((o.name||'').trim().toLowerCase()) && (
+                                <span className="text-2xs px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 inline-flex items-center gap-0.5" title="Duplicate company name — consider merging/deleting"><AlertTriangle size={9}/>Duplicate</span>
+                              )}
+                              {isFollowUpDue(o) && (
+                                <span className="text-2xs px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-900 inline-flex items-center gap-0.5" title={`Follow-up due ${fmtDate(o.followUpDate)}`}><Clock size={9}/>Follow-up due</span>
+                              )}
+                            </div>
                             {o.urgentNotes && <div className="flex items-center gap-1 text-2xs text-blue-700 mt-0.5"><AlertCircle size={9}/>{o.urgentNotes.slice(0,50)}</div>}
                           </td>
                           <td className="px-4 py-2.5">
@@ -533,6 +675,7 @@ export default function Opportunities() {
                           <td className="px-4 py-2.5 hidden lg:table-cell"><ScenarioBadges scenarios={o.interestedScenarios}/></td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <a href={buildFollowUpMailto(o)} onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-line text-ink-muted hover:text-brand-600" title="Draft follow-up email to contact"><Send size={13}/></a>
                               <button onClick={() => openEditOpp(o)} className="p-1 rounded hover:bg-line text-ink-muted hover:text-ink"><Edit2 size={13}/></button>
                               {confirmDelOpp === o.id ? (
                                 <div className="flex gap-1">
@@ -552,12 +695,30 @@ export default function Opportunities() {
                                 <div className="space-y-2">
                                   {o.followUpNotes && <div><p className="text-2xs font-semibold uppercase text-ink-muted mb-0.5">Follow-up Notes</p><p className="text-ink bg-paper rounded p-2 border border-line leading-relaxed">{o.followUpNotes}</p></div>}
                                   {o.nextSteps && <div><p className="text-2xs font-semibold uppercase text-ink-muted mb-0.5">Next Steps</p><p className="text-ink bg-paper rounded p-2 border border-line leading-relaxed">{o.nextSteps}</p></div>}
+                                  {Array.isArray(o.history) && o.history.length > 0 && (
+                                    <div>
+                                      <p className="text-2xs font-semibold uppercase text-ink-muted mb-0.5 flex items-center gap-1"><History size={10}/>Update History</p>
+                                      <div className="bg-paper rounded border border-line divide-y divide-line max-h-40 overflow-y-auto">
+                                        {o.history.map((h:any,i:number) => (
+                                          <div key={i} className="px-2 py-1.5">
+                                            <div className="text-2xs text-ink-muted">{fmtDate(h.date)}{h.author?` · ${h.author}`:''}</div>
+                                            <div className="text-2xs text-ink leading-relaxed">{h.text}</div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="bg-paper rounded p-2 border border-line space-y-1.5">
                                   {o.interestedScenarios?.length > 0 && <div><span className="text-2xs text-ink-muted">Scenarios: </span><ScenarioBadges scenarios={o.interestedScenarios}/></div>}
                                   {o.copyOracle && <p className="text-brand-700 text-2xs">📋 Copy Oracle on comms</p>}
                                   {o.emailOwner && <p className="text-2xs text-ink-muted">Email owner: {o.emailOwner}</p>}
                                   {o.lastReviewed && <p className="text-2xs text-ink-muted flex items-center gap-1"><Clock size={9}/>Last reviewed: {fmtDate(o.lastReviewed)}</p>}
+                                  {o.followUpDate && <p className={cn('text-2xs flex items-center gap-1', isFollowUpDue(o) ? 'text-amber-700 font-semibold' : 'text-ink-muted')}><Clock size={9}/>Follow-up: {fmtDate(o.followUpDate)}</p>}
+                                  {(o.plannedStartDate || o.plannedEndDate || o.plannedResources || o.teamAssignment) && (
+                                    <p className="text-2xs text-ink-muted">Plan: {o.plannedStartDate?fmtDate(o.plannedStartDate):'—'} → {o.plannedEndDate?fmtDate(o.plannedEndDate):'—'} · {o.plannedResources||0} res{o.teamAssignment?` · ${o.teamAssignment}`:''}{o.parked?' · ⏸ parked':''}</p>
+                                  )}
+                                  <a href={buildFollowUpMailto(o)} className="text-2xs text-brand-600 hover:underline inline-flex items-center gap-1"><Send size={9}/>Draft follow-up email</a>
                                 </div>
                               </div>
                             </td>
@@ -567,6 +728,85 @@ export default function Opportunities() {
                     );
                   })}
                 </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ══ PLANNING (Excel-style resource view) ══════════════════════════════ */}
+      {tab === 'planning' && (
+        <div className="p-6 space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <p className="text-xs text-ink-muted">Row-wise resource plan — edit start/end, headcount and team inline. Parked rows lowlight at the bottom. Dates auto-save.</p>
+            <div className="ml-auto flex items-center gap-3">
+              <span className="text-2xs text-ink-muted">Active demand: <strong className="text-ink">{totalPlannedResources}</strong> resources · {planningRows.filter(o=>!o.parked).length} active opps</span>
+              <Button variant="ghost" size="sm" onClick={exportPlanningCsv} className="gap-1"><Download size={13}/>Export CSV</Button>
+            </div>
+          </div>
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-paper-sunken/40 border-b border-line">
+                  <tr className="text-2xs uppercase tracking-wider text-ink-muted">
+                    <th className="text-left px-3 py-2.5 font-medium">Company</th>
+                    <th className="text-left px-3 py-2.5 font-medium">Stage</th>
+                    <th className="text-center px-3 py-2.5 font-medium">Rating</th>
+                    <th className="text-left px-3 py-2.5 font-medium">Start</th>
+                    <th className="text-left px-3 py-2.5 font-medium">End</th>
+                    <th className="text-center px-3 py-2.5 font-medium">Resources</th>
+                    <th className="text-left px-3 py-2.5 font-medium">Team</th>
+                    <th className="text-center px-3 py-2.5 font-medium">Parked</th>
+                    <th className="text-right px-3 py-2.5 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {planningRows.length === 0 && <tr><td colSpan={9} className="text-center py-12 text-sm text-ink-muted">No opportunities.</td></tr>}
+                  {planningRows.map((o:any) => (
+                    <tr key={o.id} className={cn('hover:bg-paper-sunken/30 transition-colors', o.parked && 'opacity-45')}>
+                      <td className="px-3 py-2 font-medium text-xs text-ink whitespace-nowrap">{o.name}</td>
+                      <td className="px-3 py-2"><StageBadge stageKey={o.aiStage}/></td>
+                      <td className="px-3 py-2 text-center"><StarRating value={o.dealRating} readonly/></td>
+                      <td className="px-3 py-2">
+                        <input type="date" defaultValue={o.plannedStartDate?o.plannedStartDate.split('T')[0]:''}
+                          onChange={e => patchOpp(o.id, { plannedStartDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                          className="text-xs px-2 py-1 rounded border border-line bg-paper focus:outline-none focus:ring-1 focus:ring-brand-500"/>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="date" defaultValue={o.plannedEndDate?o.plannedEndDate.split('T')[0]:''}
+                          onChange={e => patchOpp(o.id, { plannedEndDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                          className="text-xs px-2 py-1 rounded border border-line bg-paper focus:outline-none focus:ring-1 focus:ring-brand-500"/>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <input type="number" min="0" defaultValue={o.plannedResources ?? 0}
+                          onBlur={e => patchOpp(o.id, { plannedResources: Number(e.target.value)||0 })}
+                          className="w-16 text-xs px-2 py-1 rounded border border-line bg-paper text-center focus:outline-none focus:ring-1 focus:ring-brand-500"/>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="text" defaultValue={o.teamAssignment ?? ''} placeholder="e.g. Rohit +2"
+                          onBlur={e => patchOpp(o.id, { teamAssignment: e.target.value || null })}
+                          className="w-36 text-xs px-2 py-1 rounded border border-line bg-paper focus:outline-none focus:ring-1 focus:ring-brand-500"/>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <input type="checkbox" checked={!!o.parked}
+                          onChange={e => patchOpp(o.id, { parked: e.target.checked })}
+                          className="w-4 h-4 rounded cursor-pointer" title="Park / lowlight (not starting yet)"/>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button onClick={() => openEditOpp(o)} className="p-1 rounded hover:bg-line text-ink-muted hover:text-ink"><Edit2 size={13}/></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {planningRows.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-line bg-paper-sunken/30 text-xs font-semibold">
+                      <td className="px-3 py-2" colSpan={5}>Total active resource demand</td>
+                      <td className="px-3 py-2 text-center text-brand-700">{totalPlannedResources}</td>
+                      <td className="px-3 py-2" colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </Card>
@@ -852,6 +1092,23 @@ export default function Opportunities() {
                 <Field label="Email Owner"><Input value={oppForm.emailOwner} onChange={e => setOF('emailOwner',e.target.value)} placeholder="Account rep"/></Field>
                 <Field label="Last Reviewed"><Input type="date" value={oppForm.lastReviewed} onChange={e => setOF('lastReviewed',e.target.value)}/></Field>
               </FormRow>
+              <FormRow>
+                <Field label="Follow-up Date (highlights when due)"><Input type="date" value={oppForm.followUpDate} onChange={e => setOF('followUpDate',e.target.value)}/></Field>
+                <Field label="# Resources (planning)"><Input type="number" min="0" value={oppForm.plannedResources} onChange={e => setOF('plannedResources',e.target.value)} placeholder="0"/></Field>
+              </FormRow>
+              <FormRow>
+                <Field label="Planned Start"><Input type="date" value={oppForm.plannedStartDate} onChange={e => setOF('plannedStartDate',e.target.value)}/></Field>
+                <Field label="Planned End"><Input type="date" value={oppForm.plannedEndDate} onChange={e => setOF('plannedEndDate',e.target.value)}/></Field>
+              </FormRow>
+              <FormRow>
+                <Field label="Team Assignment"><Input value={oppForm.teamAssignment} onChange={e => setOF('teamAssignment',e.target.value)} placeholder="e.g. Rohit + 2 devs"/></Field>
+                <Field label="Parked?">
+                  <label className="flex items-center gap-2 cursor-pointer h-9">
+                    <input type="checkbox" checked={oppForm.parked} onChange={e => setOF('parked',e.target.checked)} className="w-4 h-4 rounded"/>
+                    <span className="text-sm text-ink">Not starting yet — lowlight in planning</span>
+                  </label>
+                </Field>
+              </FormRow>
               <Field label="Copy Oracle?">
                 <label className="flex items-center gap-2 cursor-pointer h-9">
                   <input type="checkbox" checked={oppForm.copyOracle} onChange={e => setOF('copyOracle',e.target.checked)} className="w-4 h-4 rounded"/>
@@ -904,13 +1161,36 @@ export default function Opportunities() {
                 )}
               </Field>
 
-              <Field label="Follow-up Notes">
-                <textarea value={oppForm.followUpNotes} onChange={e => setOF('followUpNotes',e.target.value)} rows={3} placeholder="Meeting notes, history…"
-                  className="w-full text-sm px-3 py-2 rounded-lg border border-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"/>
+              <Field label="Add Update (timestamped — previous updates are preserved)">
+                <div className="flex gap-2 items-start">
+                  <textarea value={oppForm.newUpdate} onChange={e => setOF('newUpdate',e.target.value)} rows={2} placeholder="Type or dictate an update — saved with today's date on top of the history…"
+                    className="w-full text-sm px-3 py-2 rounded-lg border border-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"/>
+                  <MicButton title="Dictate update" onResult={t => setOppForm(f => ({ ...f, newUpdate: (f.newUpdate ? f.newUpdate + ' ' : '') + t }))}/>
+                </div>
+                {oppForm.history.length > 0 && (
+                  <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-line bg-paper-sunken/40 divide-y divide-line">
+                    {oppForm.history.map((h:any,i:number) => (
+                      <div key={i} className="px-3 py-1.5">
+                        <div className="text-2xs text-ink-muted">{fmtDate(h.date)}{h.author?` · ${h.author}`:''}</div>
+                        <div className="text-2xs text-ink leading-relaxed">{h.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Field>
+              <Field label="Follow-up Notes (general)">
+                <div className="flex gap-2 items-start">
+                  <textarea value={oppForm.followUpNotes} onChange={e => setOF('followUpNotes',e.target.value)} rows={3} placeholder="General notes…"
+                    className="w-full text-sm px-3 py-2 rounded-lg border border-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"/>
+                  <MicButton title="Dictate notes" onResult={t => setOppForm(f => ({ ...f, followUpNotes: (f.followUpNotes ? f.followUpNotes + ' ' : '') + t }))}/>
+                </div>
               </Field>
               <Field label="Next Steps">
-                <textarea value={oppForm.nextSteps} onChange={e => setOF('nextSteps',e.target.value)} rows={2} placeholder="What needs to happen next…"
-                  className="w-full text-sm px-3 py-2 rounded-lg border border-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"/>
+                <div className="flex gap-2 items-start">
+                  <textarea value={oppForm.nextSteps} onChange={e => setOF('nextSteps',e.target.value)} rows={2} placeholder="What needs to happen next…"
+                    className="w-full text-sm px-3 py-2 rounded-lg border border-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"/>
+                  <MicButton title="Dictate next steps" onResult={t => setOppForm(f => ({ ...f, nextSteps: (f.nextSteps ? f.nextSteps + ' ' : '') + t }))}/>
+                </div>
               </Field>
               <Field label="Urgent Notes"><Input value={oppForm.urgentNotes} onChange={e => setOF('urgentNotes',e.target.value)} placeholder="Any urgent action items…"/></Field>
               {oppErr && <p className="text-sm text-red-600">{oppErr}</p>}

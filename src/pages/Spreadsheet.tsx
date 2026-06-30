@@ -2,10 +2,10 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Sheet, Plus, Trash2, Download, Search, Star, ChevronUp, ChevronDown, ArrowUpDown, X,
-  Target, CalendarRange, ClipboardList, Users,
+  Target, CalendarRange, ClipboardList, Users, BarChart3,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { AI_STAGES } from '@/pages/Opportunities';
+import { AI_STAGES } from '@/lib/stages';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +36,7 @@ interface SheetDef {
   sort?: (rows: any[]) => any[];
   rowClass?: (row: any) => string;
   footer?: (rows: any[]) => Record<string, any>;
+  readOnly?: boolean;
 }
 
 const STAGE_OPTS = AI_STAGES.map((s: any) => ({ value: s.key, label: `${s.num}. ${s.label}`, color: s.color }));
@@ -68,7 +69,7 @@ function isDue(o: any): boolean {
 }
 
 // ── Sheet definitions ─────────────────────────────────────────────────────────
-const SHEETS: SheetDef[] = [
+export const SHEETS: SheetDef[] = [
   {
     key: 'opportunities', label: 'Opportunities', icon: <Target size={13} />,
     queryKey: ['opportunities'],
@@ -147,23 +148,50 @@ const SHEETS: SheetDef[] = [
       { key: 'scenarios', label: 'Scenarios', type: 'tags', width: 160 },
     ],
   },
+  {
+    key: 'summary', label: 'Summary', icon: <BarChart3 size={13} />, readOnly: true,
+    queryKey: ['opportunities', 'owner-summary'],
+    list: async () => {
+      const opps = (await api.opportunities.list()) as any[];
+      const m: Record<string, any> = {};
+      opps.forEach((o) => {
+        const owner = o.trinamixOwner || 'Unassigned';
+        if (!m[owner]) m[owner] = { id: owner, owner, count: 0, hot: 0, ratingSum: 0, value: 0, negotiation: 0 };
+        const r = m[owner];
+        r.count++; r.ratingSum += Number(o.dealRating) || 0; r.value += Number(o.value) || 0;
+        if ((Number(o.dealRating) || 0) >= 4) r.hot++;
+        if (o.stage === 'negotiation_sow') r.negotiation++;
+      });
+      return Object.values(m).map((r: any) => ({ ...r, avgRating: r.count ? Math.round(r.ratingSum / r.count) : 0 }));
+    },
+    create: async () => ({}), update: async () => ({}), remove: async () => ({}), newRow: () => ({}),
+    sort: (rows) => [...rows].sort((a, b) => b.count - a.count),
+    columns: [
+      { key: 'owner', label: 'Owner', type: 'text', width: 170 },
+      { key: 'count', label: 'Opportunities', type: 'number', width: 110 },
+      { key: 'hot', label: 'Hot (>=4 stars)', type: 'number', width: 100 },
+      { key: 'avgRating', label: 'Avg Rating', type: 'stars', width: 110 },
+      { key: 'value', label: 'Pipeline Value', type: 'currency', width: 130 },
+      { key: 'negotiation', label: 'In Negotiation', type: 'number', width: 120 },
+    ],
+  },
 ];
 
 
-function Stars({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function Stars({ value, onChange, readonly }: { value: number; onChange?: (v: number) => void; readonly?: boolean }) {
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map((n) => (
         <Star key={n} size={13}
-          className={cn('cursor-pointer transition-colors', n <= value ? 'fill-green-500 text-green-500' : 'text-line fill-transparent hover:text-green-400')}
-          onClick={() => onChange(n === value ? 0 : n)} />
+          className={cn('transition-colors', !readonly && 'cursor-pointer', n <= value ? 'fill-green-500 text-green-500' : 'text-line fill-transparent', !readonly && 'hover:text-green-400')}
+          onClick={() => !readonly && onChange?.(n === value ? 0 : n)} />
       ))}
     </div>
   );
 }
 
 // ── Editable grid ─────────────────────────────────────────────────────────────
-function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
+export function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
   const qc = useQueryClient();
   const { data: raw = [], isLoading } = useQuery({ queryKey: def.queryKey, queryFn: def.list, enabled });
   const invalidate = () => qc.invalidateQueries({ queryKey: def.queryKey });
@@ -172,6 +200,7 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
   const mRemove = useMutation({ mutationFn: (id: string) => def.remove(id), onSuccess: invalidate });
 
   const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<Record<string, string>>({});
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [edit, setEdit] = useState<{ id: string; key: string } | null>(null);
@@ -180,10 +209,18 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
   const [err, setErr] = useState('');
 
   const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
     let list = (raw as any[]).filter((r) => {
-      if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      return def.columns.some((c) => String(r[c.key] ?? '').toLowerCase().includes(q));
+      if (q && !def.columns.some((c) => String(r[c.key] ?? '').toLowerCase().includes(q))) return false;
+      return def.columns.every((c) => {
+        const fv = (filters[c.key] ?? '').trim();
+        if (!fv) return true;
+        const v = r[c.key];
+        if (c.type === 'select') return String(v ?? '') === fv;
+        if (c.type === 'check') return fv === 'yes' ? !!v : !v;
+        if (c.type === 'tags') return (Array.isArray(v) ? v.join(' ') : String(v ?? '')).toLowerCase().includes(fv.toLowerCase());
+        return String(v ?? '').toLowerCase().includes(fv.toLowerCase());
+      });
     });
     if (sortKey) {
       const col = def.columns.find((c) => c.key === sortKey);
@@ -198,7 +235,7 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
       list = def.sort(list);
     }
     return list;
-  }, [raw, search, sortKey, sortDir, def]);
+  }, [raw, search, filters, sortKey, sortDir, def]);
 
   const footer = def.footer ? def.footer(rows) : null;
 
@@ -226,11 +263,11 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
 
   function renderCell(row: any, col: Column) {
     const v = row[col.key];
-    const editing = edit?.id === row.id && edit?.key === col.key;
+    const editing = !def.readOnly && edit?.id === row.id && edit?.key === col.key;
 
-    if (col.type === 'stars') return <Stars value={Number(v) || 0} onChange={(nv) => mUpdate.mutate({ id: row.id, data: { dealRating: nv } })} />;
+    if (col.type === 'stars') return <Stars value={Number(v) || 0} readonly={def.readOnly} onChange={(nv) => mUpdate.mutate({ id: row.id, data: { [col.key]: nv } })} />;
     if (col.type === 'check') return (
-      <input type="checkbox" checked={!!v} onChange={(e) => mUpdate.mutate({ id: row.id, data: { [col.key]: e.target.checked } })}
+      <input type="checkbox" checked={!!v} disabled={def.readOnly} onChange={(e) => mUpdate.mutate({ id: row.id, data: { [col.key]: e.target.checked } })}
         className="w-4 h-4 rounded cursor-pointer" />
     );
 
@@ -269,6 +306,7 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
     } else {
       display = v != null && String(v) !== '' ? String(v) : <span className="text-ink-muted">—</span>;
     }
+    if (def.readOnly) return <div className="min-h-[20px] px-1 -mx-1">{display}</div>;
     return (
       <div className="min-h-[20px] cursor-text rounded px-1 -mx-1 hover:bg-brand-50/60"
         onClick={() => { setEdit({ id: row.id, key: col.key }); setDraft(toDraft(col.type, v)); }}>
@@ -286,10 +324,10 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted" />
           <Input placeholder="Search rows…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 w-56 text-xs" />
         </div>
-        <span className="text-2xs text-ink-muted">{rows.length} rows · click any cell to edit</span>
+        <span className="text-2xs text-ink-muted">{rows.length} rows{def.readOnly ? '' : ' · click any cell to edit'}</span>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={exportCsv} className="gap-1"><Download size={13} />Export CSV</Button>
-          <Button variant="primary" size="sm" onClick={addRow} className="gap-1"><Plus size={13} />Add row</Button>
+          {!def.readOnly && <Button variant="primary" size="sm" onClick={addRow} className="gap-1"><Plus size={13} />Add row</Button>}
         </div>
       </div>
       {err && <div className="text-xs text-red-600">{err}</div>}
@@ -297,7 +335,7 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
-            <thead className="bg-paper-sunken/50 border-b border-line sticky top-0">
+            <thead className="bg-paper-sunken/50 border-b border-line sticky top-0 z-10">
               <tr className="text-2xs uppercase tracking-wider text-ink-muted">
                 <th className="text-left px-2 py-2 font-medium w-8">#</th>
                 {def.columns.map((c) => (
@@ -308,12 +346,35 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
                     </button>
                   </th>
                 ))}
-                <th className="px-2 py-2 w-10"></th>
+                {!def.readOnly && <th className="px-2 py-2 w-10"></th>}
+              </tr>
+              <tr className="bg-paper">
+                <th className="px-2 py-1"></th>
+                {def.columns.map((c) => (
+                  <th key={c.key} className="px-1.5 py-1 border-l border-line/40 font-normal">
+                    {c.type === 'select' ? (
+                      <select value={filters[c.key] ?? ''} onChange={(e) => setFilters((fl) => ({ ...fl, [c.key]: e.target.value }))}
+                        className="w-full text-2xs px-1 py-0.5 rounded border border-line bg-white text-ink-muted">
+                        <option value="">All</option>
+                        {c.options!.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    ) : c.type === 'check' ? (
+                      <select value={filters[c.key] ?? ''} onChange={(e) => setFilters((fl) => ({ ...fl, [c.key]: e.target.value }))}
+                        className="w-full text-2xs px-1 py-0.5 rounded border border-line bg-white text-ink-muted">
+                        <option value="">All</option><option value="yes">Yes</option><option value="no">No</option>
+                      </select>
+                    ) : (
+                      <input value={filters[c.key] ?? ''} onChange={(e) => setFilters((fl) => ({ ...fl, [c.key]: e.target.value }))}
+                        placeholder="Filter…" className="w-full text-2xs px-1 py-0.5 rounded border border-line bg-white placeholder:text-ink-subtle" />
+                    )}
+                  </th>
+                ))}
+                {!def.readOnly && <th className="px-2 py-1"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {rows.length === 0 && (
-                <tr><td colSpan={def.columns.length + 2} className="text-center py-10 text-sm text-ink-muted">No rows. Click “Add row”.</td></tr>
+                <tr><td colSpan={def.columns.length + (def.readOnly ? 1 : 2)} className="text-center py-10 text-sm text-ink-muted">No rows.</td></tr>
               )}
               {rows.map((row, idx) => (
                 <tr key={row.id} className={cn('hover:bg-paper-sunken/30 transition-colors', idx % 2 ? 'bg-paper-sunken/10' : '', def.rowClass?.(row))}>
@@ -323,16 +384,18 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
                       {renderCell(row, c)}
                     </td>
                   ))}
-                  <td className="px-2 py-1.5 align-top text-right">
-                    {confirmDel === row.id ? (
-                      <span className="inline-flex gap-1">
-                        <button onClick={() => mRemove.mutate(row.id, { onSuccess: () => setConfirmDel(null) })} className="text-2xs px-1.5 py-0.5 rounded bg-red-500 text-white">Del</button>
-                        <button onClick={() => setConfirmDel(null)} className="text-2xs px-1.5 py-0.5 rounded border border-line"><X size={11} /></button>
-                      </span>
-                    ) : (
-                      <button onClick={() => setConfirmDel(row.id)} className="p-1 rounded hover:bg-line text-ink-muted hover:text-red-500"><Trash2 size={13} /></button>
-                    )}
-                  </td>
+                  {!def.readOnly && (
+                    <td className="px-2 py-1.5 align-top text-right">
+                      {confirmDel === row.id ? (
+                        <span className="inline-flex gap-1">
+                          <button onClick={() => mRemove.mutate(row.id, { onSuccess: () => setConfirmDel(null) })} className="text-2xs px-1.5 py-0.5 rounded bg-red-500 text-white">Del</button>
+                          <button onClick={() => setConfirmDel(null)} className="text-2xs px-1.5 py-0.5 rounded border border-line"><X size={11} /></button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setConfirmDel(row.id)} className="p-1 rounded hover:bg-line text-ink-muted hover:text-red-500"><Trash2 size={13} /></button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -345,7 +408,7 @@ function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean }) {
                       {c.key in footer ? (c.key === 'plannedResources' ? <span className="text-brand-700">{footer[c.key]} total</span> : footer[c.key]) : ''}
                     </td>
                   ))}
-                  <td />
+                  {!def.readOnly && <td />}
                 </tr>
               </tfoot>
             )}

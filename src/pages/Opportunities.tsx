@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useOpportunities, useCreateOpportunity, useUpdateOpportunity, useDeleteOpportunity } from '@/lib/hooks';
 import { getUser } from '@/lib/api';
+import { AI_STAGES } from '@/lib/stages';
+import { SheetGrid, SHEETS } from '@/pages/Spreadsheet';
 import { isFollowUpDue, buildFollowUpMailto, sortOpportunities, findDuplicateNames, sortPlanningRows, sumPlannedResources, appendHistory, toPlanningCsv } from '@/lib/opportunityUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,21 +19,6 @@ import { fmtDate, cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 
 // ─── Stage definitions ────────────────────────────────────────────────────────
-export const AI_STAGES = [
-  { key: 'intro_sent',            label: 'Intro Sent',        num: '0',  group: 'outreach',   color: 'bg-slate-100 text-slate-500',     dot: 'bg-slate-400' },
-  { key: 'interest_received',     label: 'Interest Received', num: '1',  group: 'outreach',   color: 'bg-blue-50 text-blue-600',        dot: 'bg-blue-300' },
-  { key: 'reply_sent',            label: 'Reply Sent',        num: '2',  group: 'outreach',   color: 'bg-blue-100 text-blue-700',       dot: 'bg-blue-500' },
-  { key: 'preworkshop_scheduled', label: 'Pre-Workshop',      num: '3',  group: 'workshop',   color: 'bg-blue-200 text-blue-800',       dot: 'bg-blue-600' },
-  { key: 'pending_workshop',      label: 'Pending Workshop',  num: '4',  group: 'workshop',   color: 'bg-blue-100 text-blue-700',       dot: 'bg-blue-400' },
-  { key: 'workshop_scheduled',    label: 'Scheduled',         num: '5',  group: 'workshop',   color: 'bg-blue-200 text-blue-800',       dot: 'bg-blue-600' },
-  { key: 'add_oracle',            label: 'Add Oracle',        num: '6',  group: 'workshop',   color: 'bg-blue-300 text-blue-900',       dot: 'bg-blue-700' },
-  { key: 'workshop_executed',     label: 'Workshop Done',     num: '7',  group: 'executed',   color: 'bg-green-100 text-green-700',     dot: 'bg-green-500' },
-  { key: 'not_interested',        label: 'Not Interested',    num: '8',  group: 'lost',       color: 'bg-slate-100 text-slate-500',     dot: 'bg-slate-400' },
-  { key: 'enabling_ai',           label: 'Enabling AI',       num: '9',  group: 'commercial', color: 'bg-green-100 text-green-700',     dot: 'bg-green-500' },
-  { key: 'negotiation_sow',       label: 'Negotiation / SOW', num: '10', group: 'commercial', color: 'bg-green-200 text-green-800',     dot: 'bg-green-600' },
-  { key: 'deal_closed',           label: 'Deal Closed',       num: '11', group: 'won',        color: 'bg-green-300 text-green-900',     dot: 'bg-green-700' },
-  { key: 'not_legit',             label: 'Not Legit',         num: '12', group: 'lost',       color: 'bg-slate-50 text-slate-400',      dot: 'bg-slate-300' },
-] as const;
 
 const STAGE_MAP = Object.fromEntries(AI_STAGES.map(s => [s.key, s]));
 const LEGACY_STAGE_MAP: Record<string, string> = {
@@ -253,11 +240,11 @@ function ScenarioBadges({ scenarios }: { scenarios: string[] }) {
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
-type TabKey = 'pipeline' | 'inquiries' | 'planning' | 'calendar' | 'action' | 'summary';
+type TabKey = 'grid' | 'pipeline' | 'inquiries' | 'planning' | 'calendar' | 'action' | 'summary';
 
 export default function Opportunities() {
   // ── Global filters
-  const [tab, setTab] = useState<TabKey>('pipeline');
+  const [tab, setTab] = useState<TabKey>('grid');
   const [search, setSearch] = useState('');
   const [filterStage, setFilterStage] = useState('all');
   const [filterOwner, setFilterOwner] = useState('all');
@@ -498,6 +485,7 @@ export default function Opportunities() {
   if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading pipeline…</div>;
 
   const TABS = [
+    { key:'grid'      as TabKey, label:'Grid',        icon:<Sheet size={13}/> },
     { key:'pipeline'  as TabKey, label:'Pipeline',    icon:<LayoutGrid size={13}/> },
     { key:'inquiries' as TabKey, label:'AI Inquiries', icon:<List size={13}/> },
     { key:'planning'  as TabKey, label:'Planning',    icon:<Sheet size={13}/> },
@@ -555,6 +543,11 @@ export default function Opportunities() {
           )}
           <span className="ml-auto text-2xs text-ink-muted">{filtered.length} of {opps.length}</span>
         </div>
+      )}
+
+      {/* ══ GRID (inline editable, sort + filter, no popup) ══════════════════ */}
+      {tab === 'grid' && (
+        <div className="p-6"><SheetGrid def={SHEETS[0]} enabled={tab === 'grid'} /></div>
       )}
 
       {/* ══ PIPELINE ══════════════════════════════════════════════════════════ */}
@@ -731,83 +724,9 @@ export default function Opportunities() {
         </div>
       )}
 
-      {/* ══ PLANNING (Excel-style resource view) ══════════════════════════════ */}
+      {/* ══ PLANNING (inline editable grid) ══════════════════════════════════ */}
       {tab === 'planning' && (
-        <div className="p-6 space-y-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            <p className="text-xs text-ink-muted">Row-wise resource plan — edit start/end, headcount and team inline. Parked rows lowlight at the bottom. Dates auto-save.</p>
-            <div className="ml-auto flex items-center gap-3">
-              <span className="text-2xs text-ink-muted">Active demand: <strong className="text-ink">{totalPlannedResources}</strong> resources · {planningRows.filter(o=>!o.parked).length} active opps</span>
-              <Button variant="ghost" size="sm" onClick={exportPlanningCsv} className="gap-1"><Download size={13}/>Export CSV</Button>
-            </div>
-          </div>
-          <Card>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-paper-sunken/40 border-b border-line">
-                  <tr className="text-2xs uppercase tracking-wider text-ink-muted">
-                    <th className="text-left px-3 py-2.5 font-medium">Company</th>
-                    <th className="text-left px-3 py-2.5 font-medium">Stage</th>
-                    <th className="text-center px-3 py-2.5 font-medium">Rating</th>
-                    <th className="text-left px-3 py-2.5 font-medium">Start</th>
-                    <th className="text-left px-3 py-2.5 font-medium">End</th>
-                    <th className="text-center px-3 py-2.5 font-medium">Resources</th>
-                    <th className="text-left px-3 py-2.5 font-medium">Team</th>
-                    <th className="text-center px-3 py-2.5 font-medium">Parked</th>
-                    <th className="text-right px-3 py-2.5 font-medium"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {planningRows.length === 0 && <tr><td colSpan={9} className="text-center py-12 text-sm text-ink-muted">No opportunities.</td></tr>}
-                  {planningRows.map((o:any) => (
-                    <tr key={o.id} className={cn('hover:bg-paper-sunken/30 transition-colors', o.parked && 'opacity-45')}>
-                      <td className="px-3 py-2 font-medium text-xs text-ink whitespace-nowrap">{o.name}</td>
-                      <td className="px-3 py-2"><StageBadge stageKey={o.aiStage}/></td>
-                      <td className="px-3 py-2 text-center"><StarRating value={o.dealRating} readonly/></td>
-                      <td className="px-3 py-2">
-                        <input type="date" defaultValue={o.plannedStartDate?o.plannedStartDate.split('T')[0]:''}
-                          onChange={e => patchOpp(o.id, { plannedStartDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                          className="text-xs px-2 py-1 rounded border border-line bg-paper focus:outline-none focus:ring-1 focus:ring-brand-500"/>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input type="date" defaultValue={o.plannedEndDate?o.plannedEndDate.split('T')[0]:''}
-                          onChange={e => patchOpp(o.id, { plannedEndDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                          className="text-xs px-2 py-1 rounded border border-line bg-paper focus:outline-none focus:ring-1 focus:ring-brand-500"/>
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <input type="number" min="0" defaultValue={o.plannedResources ?? 0}
-                          onBlur={e => patchOpp(o.id, { plannedResources: Number(e.target.value)||0 })}
-                          className="w-16 text-xs px-2 py-1 rounded border border-line bg-paper text-center focus:outline-none focus:ring-1 focus:ring-brand-500"/>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input type="text" defaultValue={o.teamAssignment ?? ''} placeholder="e.g. Rohit +2"
-                          onBlur={e => patchOpp(o.id, { teamAssignment: e.target.value || null })}
-                          className="w-36 text-xs px-2 py-1 rounded border border-line bg-paper focus:outline-none focus:ring-1 focus:ring-brand-500"/>
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <input type="checkbox" checked={!!o.parked}
-                          onChange={e => patchOpp(o.id, { parked: e.target.checked })}
-                          className="w-4 h-4 rounded cursor-pointer" title="Park / lowlight (not starting yet)"/>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <button onClick={() => openEditOpp(o)} className="p-1 rounded hover:bg-line text-ink-muted hover:text-ink"><Edit2 size={13}/></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                {planningRows.length > 0 && (
-                  <tfoot>
-                    <tr className="border-t-2 border-line bg-paper-sunken/30 text-xs font-semibold">
-                      <td className="px-3 py-2" colSpan={5}>Total active resource demand</td>
-                      <td className="px-3 py-2 text-center text-brand-700">{totalPlannedResources}</td>
-                      <td className="px-3 py-2" colSpan={3}></td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </Card>
-        </div>
+        <div className="p-6"><SheetGrid def={SHEETS[1]} enabled={tab === 'planning'} /></div>
       )}
 
       {/* ══ CALENDAR ══════════════════════════════════════════════════════════ */}

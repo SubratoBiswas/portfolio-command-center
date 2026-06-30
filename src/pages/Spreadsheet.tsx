@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { type CellType, toDraft, coerce, csvValue } from '@/lib/sheetUtils';
 
 // ── Column / sheet types ──────────────────────────────────────────────────────
-interface Column {
+export interface Column {
   key: string;
   label: string;
   type: CellType;
@@ -22,7 +22,7 @@ interface Column {
   options?: { value: string; label: string; color?: string }[];
   min?: number;
 }
-interface SheetDef {
+export interface SheetDef {
   key: string;
   label: string;
   icon: JSX.Element;

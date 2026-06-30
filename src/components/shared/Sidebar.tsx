@@ -30,7 +30,6 @@ const sections: NavSection[] = [
       { to: '/portfolio',     label: 'Portfolio',     icon: Briefcase },
       { to: '/products',      label: 'Products',      icon: Boxes },
       { to: '/opportunities', label: 'Opportunities', icon: Target },
-      { to: '/spreadsheet',   label: 'Spreadsheet',   icon: Sheet },
       { to: '/projects',      label: 'Projects',      icon: FolderKanban },
     ],
   },

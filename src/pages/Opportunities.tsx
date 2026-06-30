@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useOpportunities, useCreateOpportunity, useUpdateOpportunity, useDeleteOpportunity } from '@/lib/hooks';
 import { getUser } from '@/lib/api';
+import { isFollowUpDue, buildFollowUpMailto, sortOpportunities, findDuplicateNames, sortPlanningRows, sumPlannedResources, appendHistory, toPlanningCsv } from '@/lib/opportunityUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
@@ -163,20 +164,40 @@ function MicButton({ onResult, title }: { onResult: (t: string) => void; title?:
   const recRef = useRef<any>(null);
   function toggle() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { alert('Speech recognition is not supported here. Try Chrome or Edge.'); return; }
-    if (listening) { recRef.current?.stop(); return; }
-    const rec = new SR();
-    rec.lang = 'en-US'; rec.interimResults = false; rec.continuous = false;
+    if (!SR) { alert('Voice dictation is not supported in this browser. Please use Google Chrome or Microsoft Edge.'); return; }
+    if (listening) { try { recRef.current?.stop(); } catch {} setListening(false); return; }
+    let rec: any;
+    try { rec = new SR(); } catch { alert('Could not access the microphone.'); return; }
+    rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
     rec.onresult = (e: any) => {
-      const t = Array.from(e.results).map((r: any) => r[0].transcript).join(' ').trim();
-      if (t) onResult(t);
+      let finalText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      }
+      finalText = finalText.trim();
+      if (finalText) onResult(finalText);
+    };
+    rec.onerror = (e: any) => {
+      setListening(false);
+      const code = e?.error;
+      if (code === 'not-allowed' || code === 'service-not-allowed')
+        alert('Microphone is blocked. Click the mic/lock icon at the left of the address bar, allow the microphone for this site, then try again.');
+      else if (code === 'no-speech')
+        alert('No speech was detected. Click the mic and speak clearly.');
+      else if (code === 'audio-capture')
+        alert('No microphone was found. Check that a mic is connected and enabled.');
+      else if (code === 'network')
+        alert('Voice dictation needs an internet connection. Check your network and retry.');
+      else if (code && code !== 'aborted')
+        alert('Dictation error: ' + code);
     };
     rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    recRef.current = rec; setListening(true); rec.start();
+    recRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch { setListening(false); }
   }
   return (
-    <button type="button" onClick={toggle} title={title || 'Dictate'}
+    <button type="button" onClick={toggle} title={title || (listening ? 'Listening… click to stop' : 'Click then speak')}
       className={cn('p-2 rounded-lg border transition-colors shrink-0 self-start',
         listening ? 'bg-red-500 text-white border-red-500 animate-pulse' : 'border-line text-ink-muted hover:text-brand-700 hover:border-brand-400')}>
       <Mic size={14} />
@@ -184,27 +205,6 @@ function MicButton({ onResult, title }: { onResult: (t: string) => void; title?:
   );
 }
 
-const CLOSED_STAGES = ['not_interested','not_legit','deal_closed'];
-function isFollowUpDue(o: any): boolean {
-  if (!o?.followUpDate) return false;
-  if (CLOSED_STAGES.includes(o.aiStage)) return false;
-  const d = new Date(o.followUpDate); if (isNaN(d.getTime())) return false;
-  const today = new Date(); today.setHours(23,59,59,999);
-  return d.getTime() <= today.getTime();
-}
-function buildFollowUpMailto(o: any): string {
-  const to = (o.contactEmail || '').trim();
-  const stage = STAGE_MAP[o.aiStage as keyof typeof STAGE_MAP]?.label ?? o.aiStage ?? '';
-  const subject = `Follow-up: ${o.name} — Trinamix AI`;
-  const body = [
-    `Hi ${o.contactName || 'there'},`, '',
-    `Following up on ${o.name}.`,
-    stage ? `Current status: ${stage}.` : '',
-    o.nextSteps ? `Next step: ${o.nextSteps}` : '',
-    '', 'Best regards,', o.trinamixOwner || o.emailOwner || 'Trinamix Team',
-  ].filter(Boolean).join('\n');
-  return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
 
 function StageBadge({ stageKey }: { stageKey: string }) {
   const s = STAGE_MAP[stageKey as keyof typeof STAGE_MAP];
@@ -255,6 +255,7 @@ export default function Opportunities() {
   const [oppSaving, setOppSaving] = useState(false);
   const [oppErr, setOppErr] = useState('');
   const [confirmDelOpp, setConfirmDelOpp] = useState<string | null>(null);
+  const [modalConfirmDel, setModalConfirmDel] = useState(false);
   // Scenario editing state
   const [newScenario, setNewScenario] = useState('');
   const [editScenario, setEditScenario] = useState<{ original: string; value: string } | null>(null);
@@ -300,41 +301,18 @@ export default function Opportunities() {
       && (filterStage === 'all' || o.aiStage === filterStage)
       && (filterOwner === 'all' || o.trinamixOwner === filterOwner)
       && (filterRating === 'all' || String(o.dealRating) === filterRating));
-    const cmp = (a:any,b:any) => {
-      if (sortKey === 'name') return (a.name??'').localeCompare(b.name??'');
-      if (sortKey === 'followup') {
-        const ad = isFollowUpDue(a)?0:1, bd = isFollowUpDue(b)?0:1;
-        if (ad!==bd) return ad-bd;
-        return (a.followUpDate??'9999').localeCompare(b.followUpDate??'9999');
-      }
-      return (b.dealRating??0) - (a.dealRating??0); // rating high -> low
-    };
-    return [...list].sort(cmp);
+    return sortOpportunities(list, sortKey);
   }, [opps, search, filterStage, filterOwner, filterRating, sortKey]);
 
   // Duplicate company-name detection (normalized)
-  const dupNames = useMemo(() => {
-    const counts: Record<string, number> = {};
-    opps.forEach(o => { const k=(o.name||'').trim().toLowerCase(); if(k) counts[k]=(counts[k]||0)+1; });
-    return new Set(Object.keys(counts).filter(k => counts[k] > 1));
-  }, [opps]);
+  const dupNames = useMemo(() => findDuplicateNames(opps), [opps]);
 
   // Follow-ups due today/overdue
   const dueOpps = useMemo(() => opps.filter(isFollowUpDue), [opps]);
 
   // Resource-planning rows: active first by start date, parked sink to bottom
-  const planningRows = useMemo(() => {
-    const active = opps.filter(o => !['not_interested','not_legit'].includes(o.aiStage));
-    return [...active].sort((a,b) => {
-      const ap=a.parked?1:0, bp=b.parked?1:0; if(ap!==bp) return ap-bp;
-      const ad=a.plannedStartDate||'', bd=b.plannedStartDate||'';
-      if(ad&&bd) return ad.localeCompare(bd); if(ad) return -1; if(bd) return 1;
-      return (b.dealRating||0)-(a.dealRating||0);
-    });
-  }, [opps]);
-  const totalPlannedResources = useMemo(
-    () => planningRows.filter(o=>!o.parked).reduce((sum,o)=>sum+(Number(o.plannedResources)||0),0),
-    [planningRows]);
+  const planningRows = useMemo(() => sortPlanningRows(opps), [opps]);
+  const totalPlannedResources = useMemo(() => sumPlannedResources(planningRows), [planningRows]);
 
   const ownerSummary = useMemo(() => {
     const m: Record<string, any> = {};
@@ -355,7 +333,7 @@ export default function Opportunities() {
   const negCount  = opps.filter(o => o.aiStage === 'negotiation_sow').length;
 
   // ── Opportunity handlers ────────────────────────────────────────────────────
-  function openCreateOpp() { setOppEdit(null); setOppForm({ ...EMPTY_OPP }); setOppErr(''); setOppModal(true); }
+  function openCreateOpp() { setOppEdit(null); setOppForm({ ...EMPTY_OPP }); setOppErr(''); setModalConfirmDel(false); setOppModal(true); }
   function openEditOpp(o: any) {
     setOppEdit(o);
     setOppForm({ name:o.name??'', contactName:o.contactName??'', contactTitle:o.contactTitle??'',
@@ -370,7 +348,7 @@ export default function Opportunities() {
       plannedResources:o.plannedResources!=null?String(o.plannedResources):'',
       teamAssignment:o.teamAssignment??'', parked:Boolean(o.parked),
       history:Array.isArray(o.history)?o.history:[], newUpdate:'' });
-    setOppErr(''); setOppModal(true);
+    setOppErr(''); setModalConfirmDel(false); setOppModal(true);
   }
   function setOF(k: string, v: any) { setOppForm(f => ({ ...f, [k]: v })); }
 
@@ -392,11 +370,7 @@ export default function Opportunities() {
     if (!oppForm.name.trim()) { setOppErr("Company name is required."); return; }
     setOppSaving(true); setOppErr("");
     var isNew = !oppEdit;
-    const prevHistory = Array.isArray(oppForm.history) ? oppForm.history : [];
-    const upd = (oppForm.newUpdate || '').trim();
-    const nextHistory = upd
-      ? [{ date: new Date().toISOString(), text: upd, author: (getUser()?.name || oppForm.trinamixOwner || 'You') }, ...prevHistory]
-      : prevHistory;
+    const nextHistory = appendHistory(oppForm.history, oppForm.newUpdate, getUser()?.name || oppForm.trinamixOwner || 'You');
     var payload = {
       name:                oppForm.name.trim(),
       description:         oppForm.followUpNotes && oppForm.followUpNotes.trim() ? oppForm.followUpNotes.trim() : oppForm.name.trim(),
@@ -441,19 +415,17 @@ export default function Opportunities() {
     try { await deleteOpp.mutateAsync(id); setConfirmDelOpp(null); }
     catch (e: any) { void(e?.message ?? 'Delete failed.', 'error'); }
   }
+  async function handleModalDelete() {
+    if (!oppEdit) return;
+    try { await deleteOpp.mutateAsync(oppEdit.id); setModalConfirmDel(false); setOppModal(false); }
+    catch (e: any) { setOppErr(e?.message ?? 'Delete failed.'); }
+  }
   async function patchOpp(id: string, data: Record<string, any>) {
     try { await updateOpp.mutateAsync({ id, ...data }); }
     catch (e: any) { setOppErr(e?.message ?? 'Update failed.'); }
   }
   function exportPlanningCsv() {
-    const headers = ['Company','Stage','Rating','Planned Start','Planned End','Resources','Team','Owner','Status'];
-    const rows = planningRows.map((o:any) => [
-      o.name, STAGE_MAP[o.aiStage as keyof typeof STAGE_MAP]?.label ?? o.aiStage, o.dealRating ?? 0,
-      o.plannedStartDate ? o.plannedStartDate.split('T')[0] : '', o.plannedEndDate ? o.plannedEndDate.split('T')[0] : '',
-      o.plannedResources ?? 0, o.teamAssignment ?? '', o.trinamixOwner ?? '', o.parked ? 'Parked' : 'Active',
-    ]);
-    const esc = (v:any) => '"' + String(v ?? '').replace(/"/g,'""') + '"';
-    const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
+    const csv = toPlanningCsv(planningRows, (k) => STAGE_MAP[k as keyof typeof STAGE_MAP]?.label ?? k);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'opportunity-planning.csv'; a.click();
@@ -675,7 +647,7 @@ export default function Opportunities() {
                           <td className="px-4 py-2.5 hidden lg:table-cell"><ScenarioBadges scenarios={o.interestedScenarios}/></td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <a href={buildFollowUpMailto(o)} onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-line text-ink-muted hover:text-brand-600" title="Draft follow-up email to contact"><Send size={13}/></a>
+                              <a href={buildFollowUpMailto(o, STAGE_MAP[o.aiStage as keyof typeof STAGE_MAP]?.label)} onClick={e => e.stopPropagation()} className="p-1 rounded hover:bg-line text-ink-muted hover:text-brand-600" title="Draft follow-up email to contact"><Send size={13}/></a>
                               <button onClick={() => openEditOpp(o)} className="p-1 rounded hover:bg-line text-ink-muted hover:text-ink"><Edit2 size={13}/></button>
                               {confirmDelOpp === o.id ? (
                                 <div className="flex gap-1">
@@ -718,7 +690,7 @@ export default function Opportunities() {
                                   {(o.plannedStartDate || o.plannedEndDate || o.plannedResources || o.teamAssignment) && (
                                     <p className="text-2xs text-ink-muted">Plan: {o.plannedStartDate?fmtDate(o.plannedStartDate):'—'} → {o.plannedEndDate?fmtDate(o.plannedEndDate):'—'} · {o.plannedResources||0} res{o.teamAssignment?` · ${o.teamAssignment}`:''}{o.parked?' · ⏸ parked':''}</p>
                                   )}
-                                  <a href={buildFollowUpMailto(o)} className="text-2xs text-brand-600 hover:underline inline-flex items-center gap-1"><Send size={9}/>Draft follow-up email</a>
+                                  <a href={buildFollowUpMailto(o, STAGE_MAP[o.aiStage as keyof typeof STAGE_MAP]?.label)} className="text-2xs text-brand-600 hover:underline inline-flex items-center gap-1"><Send size={9}/>Draft follow-up email</a>
                                 </div>
                               </div>
                             </td>
@@ -1197,6 +1169,17 @@ export default function Opportunities() {
             </div>
           </DialogBody>
           <DialogFooter>
+            {oppEdit && (
+              modalConfirmDel ? (
+                <div className="mr-auto flex items-center gap-2">
+                  <span className="text-xs text-red-600 font-medium">Delete this opportunity?</span>
+                  <Button type="button" variant="ghost" onClick={() => setModalConfirmDel(false)}>Cancel</Button>
+                  <button type="button" onClick={handleModalDelete} className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded bg-red-500 text-white hover:bg-red-600"><Trash2 size={13}/>Delete</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setModalConfirmDel(true)} className="mr-auto inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={13}/>Delete</button>
+              )
+            )}
             <Button type="button" variant="ghost" onClick={() => setOppModal(false)}>Cancel</Button>
             <Button type="submit" variant="primary" disabled={oppSaving}>{oppSaving ? 'Saving…' : oppEdit ? 'Save changes' : 'Create'}</Button>
           </DialogFooter>

@@ -244,7 +244,7 @@ type TabKey = 'grid' | 'pipeline' | 'inquiries' | 'planning' | 'calendar' | 'act
 
 export default function Opportunities() {
   // ── Global filters
-  const [tab, setTab] = useState<TabKey>('grid');
+  const [tab, setTab] = useState<TabKey>('pipeline');
   const [search, setSearch] = useState('');
   const [filterStage, setFilterStage] = useState('all');
   const [filterOwner, setFilterOwner] = useState('all');
@@ -485,7 +485,6 @@ export default function Opportunities() {
   if (isLoading) return <div className="p-8 text-sm text-ink-muted">Loading pipeline…</div>;
 
   const TABS = [
-    { key:'grid'      as TabKey, label:'Grid',        icon:<Sheet size={13}/> },
     { key:'pipeline'  as TabKey, label:'Pipeline',    icon:<LayoutGrid size={13}/> },
     { key:'inquiries' as TabKey, label:'AI Inquiries', icon:<List size={13}/> },
     { key:'planning'  as TabKey, label:'Planning',    icon:<Sheet size={13}/> },
@@ -512,15 +511,69 @@ export default function Opportunities() {
       />
 
 
-      {/* ══ GRID (inline editable, sort + filter, no popup) ══════════════════ */}
-      {tab === 'grid' && (
-        <div className="p-6"><SheetGrid def={SHEETS[0]} enabled={tab === 'grid'} /></div>
+      {/* ══ PIPELINE ══════════════════════════════════════════════════════════ */}
+      {tab === 'pipeline' && (
+        <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+          {KANBAN_COLUMNS.map(col => {
+            const cards = activeOpps.filter(o => (col.stages as readonly string[]).includes(o.aiStage));
+            return (
+              <div key={col.key}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs font-semibold text-ink">{col.label}</span>
+                  <span className="text-2xs text-ink-muted bg-paper-sunken px-1.5 py-0.5 rounded-full">{cards.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {cards.length === 0 && (
+                    <div className={cn('rounded-lg border-t-2 border bg-paper p-4 text-center text-2xs text-ink-muted', col.accent)}>No companies</div>
+                  )}
+                  {cards.map(o => {
+                    const expanded = expandedCard === o.id;
+                    return (
+                      <Card key={o.id} className={cn('border-t-2 hover:shadow-md transition-shadow', col.accent)}>
+                        <div className="p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="text-xs font-semibold text-ink leading-tight">{o.name}</span>
+                            <div className="flex gap-0.5 shrink-0">
+                              <button onClick={() => openEditOpp(o)} className="p-0.5 rounded text-ink-muted hover:text-ink"><Edit2 size={11}/></button>
+                              <button onClick={() => setExpandedCard(expanded ? null : o.id)} className="p-0.5 rounded text-ink-muted hover:text-ink">
+                                {expanded ? <ChevronUp size={11}/> : <ChevronDown size={11}/>}
+                              </button>
+              {expandedCard === o.id && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setExpandedCard(null); }}
+                  className="p-1 rounded hover:bg-line-subtle text-ink-muted hover:text-ink ml-1"
+                  title="Close card"
+                >
+                  <X size={13} />
+                </button>
+              )}
+                            </div>
+                          </div>
+                          {o.contactName && <div className="text-2xs text-ink-muted">{o.contactName}{o.contactTitle ? ` · ${o.contactTitle}` : ''}</div>}
+                          <div className="flex items-center justify-between gap-2">
+                            <StarRating value={o.dealRating} readonly/>
+                            <StageBadge stageKey={o.aiStage}/>
+                          </div>
+                          {o.trinamixOwner && <div className="text-2xs text-ink-muted flex items-center gap-1"><User size={9}/>{o.trinamixOwner}</div>}
+                          <ScenarioBadges scenarios={o.interestedScenarios}/>
+                          {o.urgentNotes && <div className="flex items-center gap-1 text-2xs text-blue-700 bg-blue-50 rounded p-1"><AlertCircle size={10}/>{o.urgentNotes}</div>}
+                          {expanded && (
+                            <div className="border-t border-line pt-2 space-y-1 text-2xs text-ink-muted">
+                              {o.followUpNotes && <p><strong className="text-ink">Notes:</strong> {o.followUpNotes}</p>}
+                              {o.nextSteps && <p><strong className="text-ink">Next:</strong> {o.nextSteps}</p>}
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
-      {/* ══ PIPELINE ══ (inline grid) */}
-      {tab === 'pipeline' && (
-        <div className="p-6"><SheetGrid def={SHEETS[0]} enabled={tab === 'pipeline'} /></div>
-      )}
 
       {/* ══ AI INQUIRIES ══ (inline grid) */}
       {tab === 'inquiries' && (
@@ -542,10 +595,80 @@ export default function Opportunities() {
         <div className="p-6"><SheetGrid def={SHEETS[3]} enabled={tab === 'action'} /></div>
       )}
 
-      {/* ══ SUMMARY ══ (inline grid) */}
+      {/* ══ SUMMARY ═══════════════════════════════════════════════════════════ */}
       {tab === 'summary' && (
-        <div className="p-6"><SheetGrid def={SHEETS[4]} enabled={tab === 'summary'} /></div>
+        <div className="p-6 space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-ink mb-3">AI Product Interest</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {DEFAULT_SCENARIOS.map(s => {
+                const cnt = opps.filter(o => (o.interestedScenarios??[]).includes(s)).length;
+                return (
+                  <Card key={s} className="p-3 text-center">
+                    <div className="text-2xl font-bold text-ink">{cnt}</div>
+                    <div className={cn('text-2xs mt-1 px-2 py-0.5 rounded-full font-medium', SCENARIO_COLORS[s]??'bg-gray-100 text-gray-600')}>{s}</div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-ink mb-3">Pipeline Funnel</h3>
+            <Card>
+              <div className="divide-y divide-line">
+                {AI_STAGES.map(s => {
+                  const cnt = opps.filter(o => o.aiStage === s.key).length;
+                  if (!cnt) return null;
+                  return (
+                    <div key={s.key} className="flex items-center gap-3 px-4 py-2">
+                      <span className={cn('text-2xs px-2 py-0.5 rounded-full font-medium w-36 text-center', s.color)}>{s.num}. {s.label}</span>
+                      <div className="flex-1 bg-line rounded-full h-2"><div className={cn('h-2 rounded-full', s.dot)} style={{width:`${(cnt/opps.length)*100}%`}}/></div>
+                      <span className="text-xs font-semibold text-ink w-6 text-right">{cnt}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-ink mb-3">Owner Leaderboard</h3>
+            <Card>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-paper-sunken/40 border-b border-line">
+                    <tr className="text-2xs uppercase tracking-wider text-ink-muted">
+                      <th className="text-left px-4 py-2 font-medium">Owner</th>
+                      <th className="text-center px-4 py-2 font-medium">Total</th>
+                      <th className="text-center px-4 py-2 font-medium">🔥 Hot</th>
+                      <th className="text-center px-4 py-2 font-medium">Avg ★</th>
+                      <th className="text-left px-4 py-2 font-medium hidden md:table-cell">Top Stages</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {ownerSummary.map(row => (
+                      <tr key={row.owner} className="hover:bg-paper-sunken/30">
+                        <td className="px-4 py-2.5 font-medium text-xs text-ink">{row.owner}</td>
+                        <td className="px-4 py-2.5 text-center text-xs font-semibold">{row.count}</td>
+                        <td className="px-4 py-2.5 text-center text-xs">{row.hotCount > 0 ? <span className="text-green-700 font-semibold">{row.hotCount}</span> : '—'}</td>
+                        <td className="px-4 py-2.5 text-center"><StarRating value={Math.round(row.total/row.count)} readonly/></td>
+                        <td className="px-4 py-2.5 hidden md:table-cell">
+                          <div className="flex flex-wrap gap-1">
+                            {Object.entries(row.stages).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,3).map(([st,n]) => {
+                              const s = STAGE_MAP[st as keyof typeof STAGE_MAP];
+                              return s ? <span key={st} className={cn('text-2xs px-1.5 py-0.5 rounded-full',s.color)}>{s.num}. {s.label} ({n as number})</span> : null;
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        </div>
       )}
+
 
       {/* ══ OPPORTUNITY MODAL ════════════════════════════════════════════════ */}
       <Dialog open={oppModal} onOpenChange={setOppModal}>

@@ -237,6 +237,11 @@ model ActionItem {
   confidence         String?
   reviewed           Boolean   @default(false)
   sourceTranscriptId String?
+  company            String?
+  owner              String?
+  action             String?
+  lastDemoed         String?
+  scenarios          String[]
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }
@@ -326,16 +331,21 @@ model Dependency {
 }
 
 model Meeting {
-  id          String       @id @default(cuid()) @map("_id")
-  title       String
-  scheduledAt DateTime
-  durationMin Int          @default(60)
-  attendeeIds String[]
-  clientId    String?
-  client      Client?      @relation(fields: [clientId], references: [id])
-  agenda      String?
-  notes       String?
-  transcripts Transcript[]
+  id            String       @id @default(cuid()) @map("_id")
+  title         String
+  scheduledAt   DateTime
+  durationMin   Int          @default(60)
+  attendeeIds   String[]
+  clientId      String?
+  client        Client?      @relation(fields: [clientId], references: [id])
+  agenda        String?
+  notes         String?
+  company       String?
+  timeText      String?
+  attendeesText String?
+  sessionType   String?
+  status        String?      @default("scheduled")
+  transcripts   Transcript[]
 }
 
 model Transcript {

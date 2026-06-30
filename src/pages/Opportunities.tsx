@@ -161,47 +161,72 @@ function StarRating({ value, onChange, readonly }: { value: number; onChange?: (
 // Mic dictation (Web Speech API)
 function MicButton({ onResult, title }: { onResult: (t: string) => void; title?: string }) {
   const [listening, setListening] = useState(false);
+  const [status, setStatus] = useState('');
   const recRef = useRef<any>(null);
-  function toggle() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { alert('Voice dictation is not supported in this browser. Please use Google Chrome or Microsoft Edge.'); return; }
-    if (listening) { try { recRef.current?.stop(); } catch {} setListening(false); return; }
-    let rec: any;
-    try { rec = new SR(); } catch { alert('Could not access the microphone.'); return; }
-    rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
-    rec.onresult = (e: any) => {
-      let finalText = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+
+  async function ensureMicPermission(): Promise<boolean> {
+    try {
+      const md = (navigator as any).mediaDevices;
+      if (md?.getUserMedia) {
+        const stream = await md.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t: any) => t.stop());
       }
-      finalText = finalText.trim();
-      if (finalText) onResult(finalText);
+      return true;
+    } catch {
+      setStatus('Mic blocked — click the camera/lock icon in the address bar, allow microphone, reload.');
+      return false;
+    }
+  }
+
+  async function start() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { setStatus('Use Chrome or Edge for voice.'); return; }
+    if (!(window as any).isSecureContext) { setStatus('Voice needs an https page.'); return; }
+    const ok = await ensureMicPermission();
+    if (!ok) return;
+    let rec: any;
+    try { rec = new SR(); } catch { setStatus('Could not start mic.'); return; }
+    rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
+    rec.onresult = (e: any) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const txt = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          const t = (txt || '').trim();
+          if (t) { onResult(t); setStatus('Added \u2713  still listening…'); }
+        } else interim += txt;
+      }
+      if (interim.trim()) setStatus('Hearing: ' + interim.trim().slice(0, 60));
     };
     rec.onerror = (e: any) => {
       setListening(false);
       const code = e?.error;
-      if (code === 'not-allowed' || code === 'service-not-allowed')
-        alert('Microphone is blocked. Click the mic/lock icon at the left of the address bar, allow the microphone for this site, then try again.');
-      else if (code === 'no-speech')
-        alert('No speech was detected. Click the mic and speak clearly.');
-      else if (code === 'audio-capture')
-        alert('No microphone was found. Check that a mic is connected and enabled.');
-      else if (code === 'network')
-        alert('Voice dictation needs an internet connection. Check your network and retry.');
-      else if (code && code !== 'aborted')
-        alert('Dictation error: ' + code);
+      if (code === 'not-allowed' || code === 'service-not-allowed') setStatus('Mic blocked — allow it in the address bar, then reload.');
+      else if (code === 'no-speech') setStatus('No speech heard — click and speak.');
+      else if (code === 'audio-capture') setStatus('No microphone found.');
+      else if (code === 'network') setStatus('No internet for voice service.');
+      else if (code && code !== 'aborted') setStatus('Voice error: ' + code);
     };
-    rec.onend = () => setListening(false);
+    rec.onend = () => { setListening(false); setStatus(p => (p.startsWith('Hearing') ? '' : p)); };
     recRef.current = rec;
-    setListening(true);
+    setListening(true); setStatus('Listening… speak now');
     try { rec.start(); } catch { setListening(false); }
   }
+
+  function toggle() {
+    if (listening) { try { recRef.current?.stop(); } catch {} setListening(false); setStatus(''); return; }
+    setStatus(''); void start();
+  }
+
   return (
-    <button type="button" onClick={toggle} title={title || (listening ? 'Listening… click to stop' : 'Click then speak')}
-      className={cn('p-2 rounded-lg border transition-colors shrink-0 self-start',
-        listening ? 'bg-red-500 text-white border-red-500 animate-pulse' : 'border-line text-ink-muted hover:text-brand-700 hover:border-brand-400')}>
-      <Mic size={14} />
-    </button>
+    <div className="flex flex-col items-center gap-1 shrink-0 self-start w-24">
+      <button type="button" onClick={toggle} title={title || (listening ? 'Listening — click to stop' : 'Click, then speak')}
+        className={cn('p-2 rounded-lg border transition-colors',
+          listening ? 'bg-red-500 text-white border-red-500 animate-pulse' : 'border-line text-ink-muted hover:text-brand-700 hover:border-brand-400')}>
+        <Mic size={14} />
+      </button>
+      {status && <span className="text-[10px] leading-tight text-ink-muted text-center">{status}</span>}
+    </div>
   );
 }
 

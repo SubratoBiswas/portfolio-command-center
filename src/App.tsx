@@ -6,6 +6,7 @@ import Portfolio from '@/pages/Portfolio';
 import Products from '@/pages/Products';
 import ProductDetail from '@/pages/ProductDetail';
 import Opportunities from '@/pages/Opportunities';
+import Spreadsheet from '@/pages/Spreadsheet';
 import OpportunityDetail from '@/pages/OpportunityDetail';
 import Projects from '@/pages/Projects';
 import ProjectDetail from '@/pages/ProjectDetail';
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="products" element={<Products />} />
         <Route path="products/:id" element={<ProductDetail />} />
         <Route path="opportunities" element={<Opportunities />} />
+        <Route path="spreadsheet" element={<Spreadsheet />} />
         <Route path="opportunities/:id" element={<OpportunityDetail />} />
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:id" element={<ProjectDetail />} />

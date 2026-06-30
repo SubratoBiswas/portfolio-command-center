@@ -219,7 +219,16 @@ export const api = {
       : Promise.resolve({ reply: 'Chat requires live API mode (VITE_USE_API=true).' }),
   },
   meetings: {
-    list: () => USE_API ? call<typeof seed.meetings>('GET', '/meetings') : Promise.resolve(seed.meetings),
+    list: () => USE_API ? call<any[]>('GET', '/meetings') : Promise.resolve(seed.meetings as any[]),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/meetings', data)
+      : Promise.resolve((() => { const r = { ...data, id: `mtg-${Date.now()}` }; (seed.meetings as any[]).push(r); return r; })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/meetings/${id}`, data)
+      : Promise.resolve((() => { const m = (seed.meetings as any[]).find(m => m.id === id); if (m) Object.assign(m, data); return m; })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/meetings/${id}`)
+      : Promise.resolve((() => { const i = (seed.meetings as any[]).findIndex(m => m.id === id); if (i !== -1) (seed.meetings as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   transcripts: {
     list: () => USE_API ? call<typeof seed.transcripts>('GET', '/transcripts') : Promise.resolve(seed.transcripts),
@@ -232,7 +241,16 @@ export const api = {
       call<{ transcriptId: string; created: Record<string, number> }>('POST', `/transcripts/${id}/commit`, payload),
   },
   actionItems: {
-    list: () => USE_API ? call<typeof seed.actionItems>('GET', '/action-items') : Promise.resolve(seed.actionItems),
+    list: () => USE_API ? call<any[]>('GET', '/action-items') : Promise.resolve(seed.actionItems as any[]),
+    create: (data: any) => USE_API
+      ? call<any>('POST', '/action-items', data)
+      : Promise.resolve((() => { const r = { ...data, id: `ai-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; (seed.actionItems as any[]).push(r); return r; })()),
+    update: (id: string, data: Record<string, any>) => USE_API
+      ? call<any>('PATCH', `/action-items/${id}`, data)
+      : Promise.resolve((() => { const a = (seed.actionItems as any[]).find(a => a.id === id); if (a) Object.assign(a, data); return a; })()),
+    delete: (id: string) => USE_API
+      ? call<any>('DELETE', `/action-items/${id}`)
+      : Promise.resolve((() => { const i = (seed.actionItems as any[]).findIndex(a => a.id === id); if (i !== -1) (seed.actionItems as any[]).splice(i, 1); return { id, deleted: true }; })()),
   },
   capabilities: {
     list: () => USE_API ? call<typeof seed.capabilities>('GET', '/capabilities') : Promise.resolve(seed.capabilities),

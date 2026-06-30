@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Sheet, Plus, Trash2, Download, Search, Star, ChevronUp, ChevronDown, ArrowUpDown, X,
@@ -207,6 +207,8 @@ export function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean })
   const [draft, setDraft] = useState('');
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [err, setErr] = useState('');
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -238,6 +240,10 @@ export function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean })
   }, [raw, search, filters, sortKey, sortDir, def]);
 
   const footer = def.footer ? def.footer(rows) : null;
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageRows = useMemo(() => rows.slice(safePage * pageSize, safePage * pageSize + pageSize), [rows, safePage, pageSize]);
+  useEffect(() => { setPage(0); }, [search, filters, sortKey, sortDir, pageSize]);
 
   function commit(id: string, col: Column) {
     const value = coerce(col.type, draft);
@@ -376,9 +382,9 @@ export function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean })
               {rows.length === 0 && (
                 <tr><td colSpan={def.columns.length + (def.readOnly ? 1 : 2)} className="text-center py-10 text-sm text-ink-muted">No rows.</td></tr>
               )}
-              {rows.map((row, idx) => (
+              {pageRows.map((row, idx) => (
                 <tr key={row.id} className={cn('hover:bg-paper-sunken/30 transition-colors', idx % 2 ? 'bg-paper-sunken/10' : '', def.rowClass?.(row))}>
-                  <td className="px-2 py-1.5 text-2xs text-ink-muted align-top">{idx + 1}</td>
+                  <td className="px-2 py-1.5 text-2xs text-ink-muted align-top">{safePage * pageSize + idx + 1}</td>
                   {def.columns.map((c) => (
                     <td key={c.key} style={{ minWidth: c.width }} className="px-2 py-1.5 align-top border-l border-line/40 text-xs text-ink">
                       {renderCell(row, c)}
@@ -415,6 +421,20 @@ export function SheetGrid({ def, enabled }: { def: SheetDef; enabled: boolean })
           </table>
         </div>
       </Card>
+      <div className="flex items-center gap-3 text-xs text-ink-muted flex-wrap">
+        <span>Showing {rows.length === 0 ? 0 : safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, rows.length)} of {rows.length}</span>
+        <label className="flex items-center gap-1">Rows:
+          <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="text-xs px-1.5 py-1 rounded border border-line bg-white">
+            {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+            <option value={100000}>All</option>
+          </select>
+        </label>
+        <div className="ml-auto flex items-center gap-1.5">
+          <button disabled={safePage <= 0} onClick={() => setPage(safePage - 1)} className="px-2.5 py-1 rounded border border-line disabled:opacity-40 hover:bg-paper-sunken">Prev</button>
+          <span className="px-1">Page {safePage + 1} of {totalPages}</span>
+          <button disabled={safePage >= totalPages - 1} onClick={() => setPage(safePage + 1)} className="px-2.5 py-1 rounded border border-line disabled:opacity-40 hover:bg-paper-sunken">Next</button>
+        </div>
+      </div>
     </div>
   );
 }
